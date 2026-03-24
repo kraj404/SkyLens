@@ -1,0 +1,15 @@
+# Example configuration
+# Copy to local.properties and fill in your values
+
+# Supabase Configuration
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_anon_key_here
+
+# Google OAuth (from Google Cloud Console)
+GOOGLE_WEB_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+
+# Claude API (from Anthropic Console)
+CLAUDE_API_KEY=sk-ant-api03-your-key-here
+
+# Optional: For development
+DEBUG_MODE=true

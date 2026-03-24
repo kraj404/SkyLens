@@ -1,0 +1,77 @@
+{
+  "Cline Session Start": {
+    "prefix": "cline-start",
+    "body": [
+      "You are helping me build a mobile app. Before doing anything, read and understand the full context below.",
+      "",
+      "## App Overview",
+      "- App Name: $1",
+      "- Platform: $2",
+      "- Tech Stack: $3",
+      "- Target API Level / iOS version: $4",
+      "",
+      "## Full Requirements",
+      "$5",
+      "",
+      "## Tech Decisions Already Made",
+      "- Authentication: $6",
+      "- Database: $7",
+      "- Backend: $8",
+      "- Navigation: $9",
+      "",
+      "## Current Project State",
+      "- What's already built: $10",
+      "- What's broken or pending: $11",
+      "",
+      "## Today's Milestone Goal",
+      "- Milestone #: $12",
+      "- Goal: $13",
+      "- Deliverable: $14",
+      "",
+      "## Rules You Must Follow",
+      "1. Always use Plan Mode before writing any code",
+      "2. Work only inside these folders: $15",
+      "3. Do NOT modify files outside today's milestone scope",
+      "4. After completing each screen or feature, pause and summarize what you did",
+      "5. If you are unsure about any requirement, ask me before proceeding",
+      "6. Keep code modular — one file per screen/component",
+      "7. Do not over-engineer — match complexity to an intermediate developer level",
+      "8. If you hit an error you cannot fix in 2 attempts, stop and explain the problem"
+    ],
+    "description": "Cline session start prompt for mobile app development"
+  },
+
+  "Cline Milestone Complete": {
+    "prefix": "cline-milestone",
+    "body": [
+      "Milestone $1 is now complete.",
+      "",
+      "Summary of what was built: $2",
+      "Known issues or TODOs left: $3",
+      "",
+      "Now begin Milestone $4.",
+      "Goal: $5",
+      "Deliverable: $6",
+      "",
+      "Re-read the original requirements above before starting.",
+      "Same rules apply. Start with Plan Mode."
+    ],
+    "description": "Cline milestone completion and next milestone start"
+  },
+
+  "Cline Course Correct": {
+    "prefix": "cline-fix",
+    "body": [
+      "Stop what you are doing.",
+      "",
+      "The current approach is not right because: $1",
+      "",
+      "Go back to: $2",
+      "",
+      "The correct approach should be: $3",
+      "",
+      "Before writing any code, show me your revised plan first."
+    ],
+    "description": "Cline course correction prompt"
+  }
+}

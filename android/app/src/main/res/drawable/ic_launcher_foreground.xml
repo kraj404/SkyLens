@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Airplane body - white/light gray -->
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M54,35 L60,45 L72,45 L72,48 L60,48 L54,58 L48,58 L42,48 L30,48 L30,45 L42,45 L48,35 Z" />
+
+    <!-- Airplane wings (horizontal) -->
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M30,45 L24,40 L24,43 L30,45 Z" />
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M72,45 L78,40 L78,43 L72,45 Z" />
+
+    <!-- Airplane tail -->
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M48,35 L45,30 L48,30 L51,35 Z" />
+
+    <!-- Mountain peaks - orange accent -->
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M35,70 L45,55 L55,70 Z" />
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M50,70 L60,58 L70,70 Z" />
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M20,70 L30,62 L40,70 Z" />
+</vector>

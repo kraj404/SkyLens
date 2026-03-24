@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SkyLens</string>
+
+    <!-- Auth Screen -->
+    <string name="auth_title">Welcome to SkyLens</string>
+    <string name="auth_subtitle">Discover landmarks from your airplane window with AI-powered insights</string>
+    <string name="auth_google_button">Continue with Google</string>
+    <string name="auth_skip_button">Skip for now</string>
+    <string name="privacy_policy">Privacy Policy</string>
+
+    <!-- Flight Planning -->
+    <string name="planning_title">Plan Your Flight</string>
+    <string name="departure_label">Departure Airport</string>
+    <string name="arrival_label">Arrival Airport</string>
+    <string name="start_flight_button">Start Flight</string>
+    <string name="view_history_button">View Trip History</string>
+
+    <!-- Map Screen -->
+    <string name="map_title">Flight Map</string>
+    <string name="altitude">Altitude: %d ft</string>
+    <string name="speed">Speed: %d km/h</string>
+    <string name="ask_ai">Ask AI</string>
+
+    <!-- Landmark -->
+    <string name="landmark_distance">%d km away</string>
+    <string name="landmark_elevation">Elevation: %d m</string>
+    <string name="generating_story">AI is generating story...</string>
+
+    <!-- Permissions -->
+    <string name="location_permission_rationale">SkyLens needs location access to show you landmarks visible from your airplane window in real-time.</string>
+    <string name="background_location_rationale">To continue tracking your flight when the app is minimized, we need background location access.</string>
+
+    <!-- Errors -->
+    <string name="error_gps_unavailable">GPS signal lost. Showing estimated position.</string>
+    <string name="error_no_internet">No internet connection. Some features may be limited.</string>
+    <string name="error_ai_failed">AI service temporarily unavailable. Please try again.</string>
+</resources>

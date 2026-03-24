@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme using standard Material components -->
+    <style name="Theme.SkyLens" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="android:colorPrimary">#1976D2</item>
+        <item name="android:colorPrimaryDark">#004D8C</item>
+        <item name="android:colorAccent">#FF6F00</item>
+
+        <!-- Status bar and navigation bar -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
