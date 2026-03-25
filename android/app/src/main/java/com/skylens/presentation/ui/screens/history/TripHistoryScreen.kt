@@ -78,6 +78,7 @@ fun TripHistoryScreen(
                             TripCard(
                                 tripWithSummary = tripWithSummary,
                                 onClick = {
+                                    android.util.Log.d("TripHistoryScreen", "Trip card clicked: ${tripWithSummary.trip.id}")
                                     onTripClick(tripWithSummary.trip.id, tripWithSummary.trip.departureAirport, tripWithSummary.trip.arrivalAirport)
                                 },
                                 onDelete = { viewModel.deleteTrip(tripWithSummary.trip.id) },

@@ -26,25 +26,60 @@ import java.util.*
 fun TripReplayScreen(
     tripId: String,
     onNavigateBack: () -> Unit,
+    onNavigateToLandmarkDetail: (String) -> Unit = {},
     viewModel: TripHistoryViewModel = hiltViewModel()
 ) {
-    val tripWithSummary = viewModel.uiState.collectAsState().value.trips.find { it.trip.id == tripId }
-    val trip = tripWithSummary?.trip
+    var trip by remember { mutableStateOf<com.skylens.domain.model.Trip?>(null) }
+    var landmarks by remember { mutableStateOf<List<com.skylens.domain.model.Landmark>>(emptyList()) }
+    var showLandmarkSheet by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
     var playbackSpeed by remember { mutableStateOf(1f) }
     var currentPositionIndex by remember { mutableStateOf(0) }
     var replayPositions by remember { mutableStateOf<List<FlightPosition>>(emptyList()) }
 
-    // Load trip events and generate replay positions
-    LaunchedEffect(tripId) {
-        trip?.let {
-            // TODO: Load actual trip events from database
-            // For now, generate mock replay data from route
+    // Load trip directly from repository
+    LaunchedEffect(tripId, viewModel) {
+        android.util.Log.d("TripReplayScreen", "Loading trip: $tripId")
+
+        // First check cached trips
+        val cachedTrip = viewModel.uiState.value.trips.find { it.trip.id == tripId }?.trip
+
+        if (cachedTrip != null) {
+            android.util.Log.d("TripReplayScreen", "Found trip in cache: ${cachedTrip.departureAirport} -> ${cachedTrip.arrivalAirport}")
+            trip = cachedTrip
             replayPositions = generateReplayPositions(
-                it.departureAirport,
-                it.arrivalAirport,
-                100 // 100 positions for smooth animation
+                cachedTrip.departureAirport,
+                cachedTrip.arrivalAirport,
+                100
             )
+            // Load all route landmarks (same as FlightMapScreen does)
+            landmarks = viewModel.getRouteLandmarks(cachedTrip.departureAirport, cachedTrip.arrivalAirport)
+            android.util.Log.d("TripReplayScreen", "Loaded ${landmarks.size} landmarks for route")
+            isLoading = false
+        } else {
+            // Wait a bit for trips to load, then check again
+            android.util.Log.d("TripReplayScreen", "Trip not in cache, waiting for load...")
+            kotlinx.coroutines.delay(500)
+
+            val loadedTrip = viewModel.uiState.value.trips.find { it.trip.id == tripId }?.trip
+            if (loadedTrip != null) {
+                android.util.Log.d("TripReplayScreen", "Trip loaded: ${loadedTrip.departureAirport} -> ${loadedTrip.arrivalAirport}")
+                trip = loadedTrip
+                replayPositions = generateReplayPositions(
+                    loadedTrip.departureAirport,
+                    loadedTrip.arrivalAirport,
+                    100
+                )
+                // Load all route landmarks
+                landmarks = viewModel.getRouteLandmarks(loadedTrip.departureAirport, loadedTrip.arrivalAirport)
+                android.util.Log.d("TripReplayScreen", "Loaded ${landmarks.size} landmarks for route")
+                isLoading = false
+            } else {
+                android.util.Log.e("TripReplayScreen", "Trip still not found after waiting, going back")
+                isLoading = false
+                onNavigateBack()
+            }
         }
     }
 
@@ -75,14 +110,44 @@ fun TripReplayScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (trip != null && replayPositions.isNotEmpty()) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else if (trip != null && replayPositions.isNotEmpty()) {
                 // Map showing replay
                 MapLibreMapView(
                     modifier = Modifier.fillMaxSize(),
                     currentPosition = replayPositions.getOrNull(currentPositionIndex),
-                    landmarks = emptyList(), // TODO: Load landmarks from trip events
-                    routePoints = replayPositions.map { Pair(it.latitude, it.longitude) }
+                    landmarks = landmarks,
+                    routePoints = replayPositions.map { Pair(it.latitude, it.longitude) },
+                    onLandmarkClick = { landmark ->
+                        android.util.Log.d("TripReplayScreen", "Landmark clicked: ${landmark.name}")
+                        onNavigateToLandmarkDetail(landmark.id)
+                    }
                 )
+
+                // Landmark Count Badge (clickable) - shows total route landmarks
+                if (landmarks.isNotEmpty()) {
+                    FloatingActionButton(
+                        onClick = {
+                            android.util.Log.d("TripReplayScreen", "POI badge clicked!")
+                            showLandmarkSheet = true
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .padding(top = 80.dp),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Text(
+                            text = "🏔️ ${landmarks.size}",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                    }
+                }
 
                 // Playback controls at bottom
                 Card(
@@ -213,6 +278,73 @@ fun TripReplayScreen(
             }
         }
     }
+
+    // Landmark List Bottom Sheet
+    if (showLandmarkSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showLandmarkSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Route Landmarks (${landmarks.size})",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                LazyColumn {
+                    items(landmarks) { landmark ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .clickable {
+                                    showLandmarkSheet = false
+                                    onNavigateToLandmarkDetail(landmark.id)
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = landmark.name,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${landmark.type.name} • ${landmark.country ?: "Unknown"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                landmark.elevationM?.let { elevation ->
+                                    Text(
+                                        text = "Elevation: ${elevation}m",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                landmark.aiStory?.let { story ->
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = story.take(150) + if (story.length > 150) "..." else "",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
 }
 
 // Helper function to generate replay positions from route
@@ -221,23 +353,22 @@ private fun generateReplayPositions(
     arrival: String,
     numPositions: Int
 ): List<FlightPosition> {
-    // Mock positions for demo - in production, load from trip_events table
-    // This creates a simple interpolated route
-
-    // Example coordinates (would come from airports table)
-    val mockRoutes = mapOf(
-        "LAX-NRT" to Pair(
-            FlightPosition(33.9416, -118.4085, 0, 0f, 0f, 10f, 0L),
-            FlightPosition(35.7647, 140.3864, 10668, 850f, 270f, 10f, 0L) // 35000ft = 10668m
-        ),
-        "DTW-BLR" to Pair(
-            FlightPosition(42.2124, -83.3534, 0, 0f, 0f, 10f, 0L),
-            FlightPosition(13.1986, 77.7066, 11582, 900f, 90f, 10f, 0L) // 38000ft = 11582m
-        )
+    // Default coordinates for known airports
+    val airportCoords = mapOf(
+        "LAX" to Pair(33.9416, -118.4085),
+        "NRT" to Pair(35.7647, 140.3864),
+        "DTW" to Pair(42.2124, -83.3534),
+        "BLR" to Pair(13.1986, 77.7066),
+        "FRA" to Pair(50.0379, 8.5622),
+        "LHR" to Pair(51.4700, -0.4543),
+        "HYD" to Pair(17.2403, 78.4294)
     )
 
-    val routeKey = "$departure-$arrival"
-    val (start, end) = mockRoutes[routeKey] ?: return emptyList()
+    val depCoords = airportCoords[departure] ?: Pair(0.0, 0.0)
+    val arrCoords = airportCoords[arrival] ?: Pair(0.0, 0.0)
+
+    val start = FlightPosition(depCoords.first, depCoords.second, 0, 0f, 0f, 10f, 0L)
+    val end = FlightPosition(arrCoords.first, arrCoords.second, 10668, 850f, 270f, 10f, 0L)
 
     return List(numPositions) { i ->
         val fraction = i.toFloat() / (numPositions - 1)

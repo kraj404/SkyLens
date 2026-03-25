@@ -117,4 +117,42 @@ class TripHistoryViewModel @Inject constructor(
             tripRepository.deleteTrip(tripId)
         }
     }
+
+    suspend fun getRouteLandmarks(departure: String, arrival: String): List<com.skylens.domain.model.Landmark> {
+        // Use same logic as FlightMapViewModel.initializeRoute()
+        val mockCoords = mapOf(
+            "LAX" to Pair(33.9416, -118.4085),
+            "NRT" to Pair(35.7647, 140.3864),
+            "DTW" to Pair(42.2124, -83.3534),
+            "BLR" to Pair(13.1986, 77.7066),
+            "FRA" to Pair(50.0379, 8.5622),
+            "LHR" to Pair(51.4700, -0.4543),
+            "HYD" to Pair(17.2403, 78.4294)
+        )
+
+        val depCoords = mockCoords[departure] ?: return emptyList()
+        val arrCoords = mockCoords[arrival] ?: return emptyList()
+
+        // Load all landmarks and filter by route corridor
+        val allLandmarks = landmarkRepository.getAllLandmarks()
+        val corridorWidthKm = 300.0
+
+        // Simple straight line for filtering (same as FlightMapViewModel)
+        return allLandmarks.filter { landmark ->
+            val distToDep = geoCalculator.haversineDistance(
+                depCoords.first, depCoords.second,
+                landmark.latitude, landmark.longitude
+            )
+            val distToArr = geoCalculator.haversineDistance(
+                arrCoords.first, arrCoords.second,
+                landmark.latitude, landmark.longitude
+            )
+            // Landmark is within corridor if it's close to either endpoint or along the path
+            distToDep < corridorWidthKm || distToArr < corridorWidthKm ||
+            (distToDep + distToArr) < (geoCalculator.haversineDistance(
+                depCoords.first, depCoords.second,
+                arrCoords.first, arrCoords.second
+            ) + corridorWidthKm)
+        }
+    }
 }

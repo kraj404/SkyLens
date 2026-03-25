@@ -147,7 +147,13 @@ fun NavGraph() {
         composable(Screen.History.route) {
             TripHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onTripClick = { tripId, departure, arrival ->
+                    // Navigate to trip replay when clicking the card
+                    android.util.Log.d("NavGraph", "Trip clicked: $tripId, navigating to replay")
+                    navController.navigate(Screen.TripReplay.createRoute(tripId))
+                },
                 onTripReplay = { tripId ->
+                    android.util.Log.d("NavGraph", "Trip replay button clicked: $tripId")
                     navController.navigate(Screen.TripReplay.createRoute(tripId))
                 }
             )
@@ -188,7 +194,10 @@ fun NavGraph() {
             val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
             TripReplayScreen(
                 tripId = tripId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLandmarkDetail = { landmarkId ->
+                    navController.navigate(Screen.LandmarkDetail.createRoute(landmarkId))
+                }
             )
         }
 

@@ -48,31 +48,47 @@ fun MapLibreMapView(
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
     var lastLandmarkCount by remember { mutableStateOf(0) }
     var lastRouteSize by remember { mutableStateOf(0) }
+    var hasInitializedCamera by remember { mutableStateOf(false) }
+    var aircraftMarker by remember { mutableStateOf<org.maplibre.android.annotations.Marker?>(null) }
 
     AndroidView(
         modifier = modifier,
         factory = { mapView },
         update = { view ->
+            android.util.Log.d("MapLibreMapView", "Update called: landmarks=${landmarks.size}, route=${routePoints.size}, mapInstance=${mapInstance != null}")
+
             // Only update if map is not initialized or data changed significantly
             val shouldUpdate = mapInstance == null ||
                                landmarks.size != lastLandmarkCount ||
                                routePoints.size != lastRouteSize
 
+            android.util.Log.d("MapLibreMapView", "shouldUpdate=$shouldUpdate (lastLandmarkCount=$lastLandmarkCount, lastRouteSize=$lastRouteSize)")
+
             if (!shouldUpdate) {
                 // Just update position marker
                 mapInstance?.let { map ->
                     currentPosition?.let { position ->
-                        // Update aircraft position only (don't recreate everything)
                         android.util.Log.d("MapLibreMapView", "Updating position only: ${position.latitude}, ${position.longitude}")
+
+                        // Remove old aircraft marker
+                        aircraftMarker?.let { map.removeMarker(it) }
+
+                        // Add new aircraft marker at updated position
+                        val newMarker = map.addMarker(
+                            org.maplibre.android.annotations.MarkerOptions()
+                                .position(org.maplibre.android.geometry.LatLng(position.latitude, position.longitude))
+                                .title("✈️ Your Position")
+                                .snippet("Alt: ${position.altitude}ft, Speed: ${position.speed}km/h")
+                        )
+                        aircraftMarker = newMarker
                     }
                 }
                 return@AndroidView
             }
 
+            android.util.Log.d("MapLibreMapView", "Triggering full map update")
             view.getMapAsync { map ->
                 mapInstance = map
-                lastLandmarkCount = landmarks.size
-                lastRouteSize = routePoints.size
 
                 // Load map style
                 map.setStyle(Style.Builder().fromUri("https://demotiles.maplibre.org/style.json")) { style ->
@@ -94,10 +110,14 @@ fun MapLibreMapView(
                                 )
                         )
 
-                        // Fit camera to route
-                        val boundsBuilder = LatLngBounds.Builder()
-                        routePoints.forEach { boundsBuilder.include(LatLng(it.first, it.second)) }
-                        map.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100))
+                        // Fit camera to route ONLY on first load
+                        if (!hasInitializedCamera && routePoints.isNotEmpty()) {
+                            val boundsBuilder = LatLngBounds.Builder()
+                            routePoints.forEach { boundsBuilder.include(LatLng(it.first, it.second)) }
+                            map.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100))
+                            hasInitializedCamera = true
+                            android.util.Log.d("MapLibreMapView", "Camera initialized to fit route bounds")
+                        }
                     }
 
                     // Add landmark markers with click handling
@@ -138,12 +158,13 @@ fun MapLibreMapView(
 
                     // Add aircraft marker
                     currentPosition?.let { position ->
-                        val aircraftMarker = MarkerOptions()
-                            .position(LatLng(position.latitude, position.longitude))
-                            .title("✈️ Your Position")
-                            .snippet("Alt: ${position.altitude}ft, Speed: ${position.speed}km/h")
-
-                        map.addMarker(aircraftMarker)
+                        val newAircraftMarker = map.addMarker(
+                            MarkerOptions()
+                                .position(LatLng(position.latitude, position.longitude))
+                                .title("✈️ Your Position")
+                                .snippet("Alt: ${position.altitude}ft, Speed: ${position.speed}km/h")
+                        )
+                        aircraftMarker = newAircraftMarker
 
                         // Center on aircraft if no route
                         if (routePoints.isEmpty()) {
@@ -155,6 +176,11 @@ fun MapLibreMapView(
                     }
 
                     onMapReady(map)
+
+                    // Update tracking counts AFTER map is fully loaded
+                    lastLandmarkCount = landmarks.size
+                    lastRouteSize = routePoints.size
+                    android.util.Log.d("MapLibreMapView", "Map fully loaded with ${landmarks.size} landmarks and ${routePoints.size} route points")
                 }
             }
         }

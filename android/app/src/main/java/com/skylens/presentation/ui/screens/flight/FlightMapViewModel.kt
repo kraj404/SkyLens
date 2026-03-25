@@ -79,28 +79,32 @@ class FlightMapViewModel @Inject constructor(
                     numPoints = 50
                 )
 
-                // Get landmarks along the ENTIRE route corridor
-                val allLandmarks = mutableListOf<Landmark>()
-                routePoints.chunked(10).forEach { segment ->
-                    val midPoint = segment[segment.size / 2]
-                    val landmarks = landmarkRepository.getLandmarksNearPosition(
-                        midPoint.first,
-                        midPoint.second,
-                        300.0 // 300km radius at each segment
-                    )
-                    allLandmarks.addAll(landmarks)
+                // Load ALL landmarks from database
+                val allLandmarks = landmarkRepository.getAllLandmarks()
+                android.util.Log.d("FlightMapViewModel", "Loaded ${allLandmarks.size} total landmarks from database")
+
+                // Filter landmarks along route corridor (300km width)
+                val corridorWidthKm = 300.0
+                val routeLandmarks = allLandmarks.filter { landmark ->
+                    routePoints.any { (routeLat, routeLon) ->
+                        val distance = geoCalculator.haversineDistance(
+                            routeLat, routeLon,
+                            landmark.latitude, landmark.longitude
+                        )
+                        distance < corridorWidthKm
+                    }
                 }
 
                 // Remove duplicates and filter out countries
-                val filteredLandmarks = allLandmarks
+                val filteredLandmarks = routeLandmarks
                     .distinctBy { it.id }
                     .filter { landmark ->
                         // Exclude country-level landmarks
                         !landmark.name.equals("India", ignoreCase = true) &&
                         !landmark.name.equals("United States", ignoreCase = true) &&
                         !landmark.name.equals("China", ignoreCase = true) &&
-                        landmark.type != com.skylens.domain.model.LandmarkType.OTHER ||
-                        landmark.elevationM != null // Keep if has elevation (real landmark)
+                        (landmark.type != com.skylens.domain.model.LandmarkType.OTHER ||
+                        landmark.elevationM != null) // Keep if has elevation (real landmark)
                     }
 
                 android.util.Log.d("FlightMapViewModel", "Route: $departureAirport -> $arrivalAirport, Points: ${routePoints.size}, Landmarks: ${filteredLandmarks.size}")
@@ -442,6 +446,10 @@ class FlightMapViewModel @Inject constructor(
     fun startMockFlight(departureCode: String, arrivalCode: String) {
         mockFlightJob?.cancel()
 
+        // Create and save trip
+        currentTripId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true) }
@@ -465,10 +473,26 @@ class FlightMapViewModel @Inject constructor(
                     100
                 )
 
+                // Save trip to database
+                val trip = com.skylens.domain.model.Trip(
+                    id = currentTripId!!,
+                    userId = null,
+                    departureAirport = departureCode,
+                    arrivalAirport = arrivalCode,
+                    routeGeoJson = "",
+                    startTime = now,
+                    endTime = null,
+                    createdAt = now,
+                    events = emptyList()
+                )
+                tripRepository.saveTrip(trip)
+                android.util.Log.d("FlightMapViewModel", "Trip created and saved: $currentTripId")
+
                 _uiState.update { it.copy(
                     routePoints = routePoints,
                     isLoading = false,
-                    isTracking = true
+                    isTracking = true,
+                    currentTripId = currentTripId
                 ) }
 
                 android.util.Log.d("FlightMapViewModel", "Route calculated with ${routePoints.size} points")
@@ -537,7 +561,15 @@ class FlightMapViewModel @Inject constructor(
                         delay(500) // Update every 0.5 seconds for fast animation
                     }
 
-                    // Flight complete
+                    // Flight complete - finalize trip
+                    currentTripId?.let { tripId ->
+                        tripRepository.getTripById(tripId)?.let { trip ->
+                            val updatedTrip = trip.copy(endTime = System.currentTimeMillis())
+                            tripRepository.saveTrip(updatedTrip)
+                            android.util.Log.d("FlightMapViewModel", "Trip finalized: $tripId")
+                        }
+                    }
+
                     _uiState.update { it.copy(isTracking = false) }
                     android.util.Log.d("FlightMapViewModel", "Mock flight completed")
                 }

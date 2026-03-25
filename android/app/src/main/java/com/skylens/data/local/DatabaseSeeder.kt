@@ -189,6 +189,17 @@ class DatabaseSeeder @Inject constructor(
             timezone = "Asia/Kolkata"
         ),
         AirportEntity(
+            iataCode = "HYD",
+            icaoCode = "VOHS",
+            name = "Rajiv Gandhi International Airport",
+            city = "Hyderabad",
+            country = "India",
+            latitude = 17.2403,
+            longitude = 78.4294,
+            elevationM = 625,
+            timezone = "Asia/Kolkata"
+        ),
+        AirportEntity(
             iataCode = "NRT",
             icaoCode = "RJAA",
             name = "Tokyo Narita International Airport",
