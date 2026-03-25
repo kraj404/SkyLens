@@ -48,6 +48,7 @@ fun MapLibreMapView(
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
     var lastLandmarkCount by remember { mutableStateOf(0) }
     var lastRouteSize by remember { mutableStateOf(0) }
+    var lastLandmarkIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var hasInitializedCamera by remember { mutableStateOf(false) }
     var aircraftMarker by remember { mutableStateOf<org.maplibre.android.annotations.Marker?>(null) }
 
@@ -55,14 +56,16 @@ fun MapLibreMapView(
         modifier = modifier,
         factory = { mapView },
         update = { view ->
+            val currentLandmarkIds = landmarks.map { it.id }
             android.util.Log.d("MapLibreMapView", "Update called: landmarks=${landmarks.size}, route=${routePoints.size}, mapInstance=${mapInstance != null}")
 
             // Only update if map is not initialized or data changed significantly
             val shouldUpdate = mapInstance == null ||
                                landmarks.size != lastLandmarkCount ||
-                               routePoints.size != lastRouteSize
+                               routePoints.size != lastRouteSize ||
+                               currentLandmarkIds != lastLandmarkIds
 
-            android.util.Log.d("MapLibreMapView", "shouldUpdate=$shouldUpdate (lastLandmarkCount=$lastLandmarkCount, lastRouteSize=$lastRouteSize)")
+            android.util.Log.d("MapLibreMapView", "shouldUpdate=$shouldUpdate (lastLandmarkCount=$lastLandmarkCount, lastRouteSize=$lastRouteSize, landmarkIds changed=${currentLandmarkIds != lastLandmarkIds})")
 
             if (!shouldUpdate) {
                 // Just update position marker
@@ -96,6 +99,9 @@ fun MapLibreMapView(
                     // Clear existing markers
                     map.clear()
 
+                    // Reset camera flag when landmarks change to allow re-centering
+                    hasInitializedCamera = false
+
                     // Add route line if available
                     if (routePoints.isNotEmpty()) {
                         val linePoints = routePoints.map { Point.fromLngLat(it.second, it.first) }
@@ -109,15 +115,32 @@ fun MapLibreMapView(
                                     PropertyFactory.lineWidth(3f)
                                 )
                         )
+                    }
 
-                        // Fit camera to route ONLY on first load
-                        if (!hasInitializedCamera && routePoints.isNotEmpty()) {
+                    // Set camera position based on content
+                    if (!hasInitializedCamera) {
+                        if (routePoints.isNotEmpty()) {
+                            // Fit camera to route
                             val boundsBuilder = LatLngBounds.Builder()
                             routePoints.forEach { boundsBuilder.include(LatLng(it.first, it.second)) }
                             map.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100))
-                            hasInitializedCamera = true
-                            android.util.Log.d("MapLibreMapView", "Camera initialized to fit route bounds")
+                            android.util.Log.d("MapLibreMapView", "Camera set to route bounds")
+                        } else if (landmarks.size == 1) {
+                            // Single landmark - zoom to it with moderate zoom level
+                            val landmark = landmarks.first()
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(LatLng(landmark.latitude, landmark.longitude))
+                                .zoom(7.5) // Moderate zoom level (decreased from 12.0 by 40%)
+                                .build()
+                            android.util.Log.d("MapLibreMapView", "Camera set to single landmark: ${landmark.name} at zoom 7.5")
+                        } else if (landmarks.isNotEmpty()) {
+                            // Multiple landmarks without route - fit to landmarks
+                            val boundsBuilder = LatLngBounds.Builder()
+                            landmarks.forEach { boundsBuilder.include(LatLng(it.latitude, it.longitude)) }
+                            map.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100))
+                            android.util.Log.d("MapLibreMapView", "Camera set to multiple landmarks")
                         }
+                        hasInitializedCamera = true
                     }
 
                     // Add landmark markers with click handling
@@ -180,6 +203,7 @@ fun MapLibreMapView(
                     // Update tracking counts AFTER map is fully loaded
                     lastLandmarkCount = landmarks.size
                     lastRouteSize = routePoints.size
+                    lastLandmarkIds = landmarks.map { it.id }
                     android.util.Log.d("MapLibreMapView", "Map fully loaded with ${landmarks.size} landmarks and ${routePoints.size} route points")
                 }
             }

@@ -97,7 +97,8 @@
       "Bash(export 'JAVA_HOME=$\\(brew --prefix openjdk@17\\)')",
       "Bash(export JAVA_HOME=\"/opt/homebrew/Cellar/openjdk@17/17.0.18/libexec/openjdk.jdk/Contents/Home\")",
       "Bash(./gradlew assembleDebug --no-configuration-cache)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "additionalDirectories": [
       "/Users/I808883/Library/Android",

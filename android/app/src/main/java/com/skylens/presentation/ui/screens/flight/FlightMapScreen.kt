@@ -33,7 +33,7 @@ fun FlightMapScreen(
     arrival: String,
     onNavigateBack: () -> Unit,
     onNavigateToAskAI: () -> Unit = {},
-    onNavigateToLandmarkDetail: (String) -> Unit = {},
+    onNavigateToLandmarkDetail: (String, List<String>) -> Unit = { _, _ -> },
     viewModel: FlightMapViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -75,7 +75,8 @@ fun FlightMapScreen(
                 routePoints = uiState.routePoints,
                 onLandmarkClick = { landmark ->
                     android.util.Log.d("FlightMapScreen", "Landmark clicked: ${landmark.name}")
-                    onNavigateToLandmarkDetail(landmark.id)
+                    val landmarkIds = uiState.allRouteLandmarks.map { it.id }
+                    onNavigateToLandmarkDetail(landmark.id, landmarkIds)
                 }
             )
 
@@ -257,7 +258,8 @@ fun FlightMapScreen(
                                 .padding(vertical = 8.dp)
                                 .clickable {
                                     showLandmarkSheet = false
-                                    onNavigateToLandmarkDetail(landmark.id)
+                                    val landmarkIds = uiState.allRouteLandmarks.map { it.id }
+                                    onNavigateToLandmarkDetail(landmark.id, landmarkIds)
                                 },
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant

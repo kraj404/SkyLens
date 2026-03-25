@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -31,11 +32,18 @@ import com.skylens.domain.model.LandmarkType
 @Composable
 fun LandmarkDetailScreen(
     landmarkId: String,
+    landmarkIds: List<String> = emptyList(), // List of all landmark IDs for navigation
     onNavigateBack: () -> Unit,
+    onNavigateToLandmark: (String) -> Unit = {}, // Navigate to another landmark
     viewModel: LandmarkDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Find current landmark index in the list
+    val currentIndex = landmarkIds.indexOf(landmarkId)
+    val hasPrevious = currentIndex > 0
+    val hasNext = currentIndex >= 0 && currentIndex < landmarkIds.size - 1
 
     // Load landmark details
     androidx.compose.runtime.LaunchedEffect(landmarkId) {
@@ -108,6 +116,18 @@ fun LandmarkDetailScreen(
                 uiState.landmark != null -> {
                     LandmarkDetailContent(
                         landmark = uiState.landmark!!,
+                        hasPrevious = hasPrevious,
+                        hasNext = hasNext,
+                        onPrevious = {
+                            if (hasPrevious) {
+                                onNavigateToLandmark(landmarkIds[currentIndex - 1])
+                            }
+                        },
+                        onNext = {
+                            if (hasNext) {
+                                onNavigateToLandmark(landmarkIds[currentIndex + 1])
+                            }
+                        },
                         onOpenWikipedia = { wikiId ->
                             val intent = Intent(Intent.ACTION_VIEW).apply {
                                 data = Uri.parse("https://en.wikipedia.org/wiki/$wikiId")
@@ -124,6 +144,10 @@ fun LandmarkDetailScreen(
 @Composable
 private fun LandmarkDetailContent(
     landmark: com.skylens.domain.model.Landmark,
+    hasPrevious: Boolean = false,
+    hasNext: Boolean = false,
+    onPrevious: () -> Unit = {},
+    onNext: () -> Unit = {},
     onOpenWikipedia: (String) -> Unit
 ) {
     LazyColumn(
@@ -131,6 +155,55 @@ private fun LandmarkDetailContent(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Map showing landmark location
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            ) {
+                com.skylens.presentation.ui.components.MapLibreMapView(
+                    modifier = Modifier.fillMaxSize(),
+                    currentPosition = null,
+                    landmarks = listOf(landmark),
+                    routePoints = emptyList()
+                )
+            }
+        }
+
+        // Navigation buttons (Previous/Next)
+        if (hasPrevious || hasNext) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    if (hasPrevious) {
+                        OutlinedButton(onClick = onPrevious) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.ArrowBack,
+                                contentDescription = "Previous"
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Previous")
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+
+                    if (hasNext) {
+                        OutlinedButton(onClick = onNext) {
+                            Text("Next")
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
+                                contentDescription = "Next"
+                            )
+                        }
+                    }
+                }
+            }
+        }
         // Photo Gallery
         item {
             landmark.photoUrls?.let { photos ->

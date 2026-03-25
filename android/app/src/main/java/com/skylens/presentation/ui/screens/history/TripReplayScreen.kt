@@ -26,7 +26,7 @@ import java.util.*
 fun TripReplayScreen(
     tripId: String,
     onNavigateBack: () -> Unit,
-    onNavigateToLandmarkDetail: (String) -> Unit = {},
+    onNavigateToLandmarkDetail: (String, List<String>) -> Unit = { _, _ -> },
     viewModel: TripHistoryViewModel = hiltViewModel()
 ) {
     var trip by remember { mutableStateOf<com.skylens.domain.model.Trip?>(null) }
@@ -123,7 +123,8 @@ fun TripReplayScreen(
                     routePoints = replayPositions.map { Pair(it.latitude, it.longitude) },
                     onLandmarkClick = { landmark ->
                         android.util.Log.d("TripReplayScreen", "Landmark clicked: ${landmark.name}")
-                        onNavigateToLandmarkDetail(landmark.id)
+                        val landmarkIds = landmarks.map { it.id }
+                        onNavigateToLandmarkDetail(landmark.id, landmarkIds)
                     }
                 )
 
@@ -303,7 +304,8 @@ fun TripReplayScreen(
                                 .padding(vertical = 8.dp)
                                 .clickable {
                                     showLandmarkSheet = false
-                                    onNavigateToLandmarkDetail(landmark.id)
+                                    val landmarkIds = landmarks.map { it.id }
+                                    onNavigateToLandmarkDetail(landmark.id, landmarkIds)
                                 },
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant

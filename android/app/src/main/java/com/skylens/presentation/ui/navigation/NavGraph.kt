@@ -36,8 +36,13 @@ sealed class Screen(val route: String) {
     object History : Screen("history")
     object Settings : Screen("settings")
     object AskAI : Screen("ask_ai")
-    object LandmarkDetail : Screen("landmark_detail/{landmarkId}") {
-        fun createRoute(landmarkId: String) = "landmark_detail/$landmarkId"
+    object LandmarkDetail : Screen("landmark_detail/{landmarkId}?landmarkIds={landmarkIds}") {
+        fun createRoute(landmarkId: String, landmarkIds: List<String> = emptyList()) =
+            if (landmarkIds.isEmpty()) {
+                "landmark_detail/$landmarkId"
+            } else {
+                "landmark_detail/$landmarkId?landmarkIds=${landmarkIds.joinToString(",")}"
+            }
     }
     object TripReplay : Screen("trip_replay/{tripId}") {
         fun createRoute(tripId: String) = "trip_replay/$tripId"
@@ -138,8 +143,8 @@ fun NavGraph() {
                 arrival = arrival,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToAskAI = { navController.navigate(Screen.AskAI.route) },
-                onNavigateToLandmarkDetail = { landmarkId ->
-                    navController.navigate(Screen.LandmarkDetail.createRoute(landmarkId))
+                onNavigateToLandmarkDetail = { landmarkId, landmarkIds ->
+                    navController.navigate(Screen.LandmarkDetail.createRoute(landmarkId, landmarkIds))
                 }
             )
         }
@@ -175,13 +180,27 @@ fun NavGraph() {
         composable(
             route = Screen.LandmarkDetail.route,
             arguments = listOf(
-                navArgument("landmarkId") { type = NavType.StringType }
+                navArgument("landmarkId") { type = NavType.StringType },
+                navArgument("landmarkIds") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
             )
         ) { backStackEntry ->
             val landmarkId = backStackEntry.arguments?.getString("landmarkId") ?: ""
+            val landmarkIdsString = backStackEntry.arguments?.getString("landmarkIds")
+            val landmarkIds = landmarkIdsString?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+
             LandmarkDetailScreen(
                 landmarkId = landmarkId,
-                onNavigateBack = { navController.popBackStack() }
+                landmarkIds = landmarkIds,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLandmark = { newLandmarkId ->
+                    navController.navigate(Screen.LandmarkDetail.createRoute(newLandmarkId, landmarkIds)) {
+                        popUpTo(Screen.LandmarkDetail.route) { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -195,8 +214,8 @@ fun NavGraph() {
             TripReplayScreen(
                 tripId = tripId,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToLandmarkDetail = { landmarkId ->
-                    navController.navigate(Screen.LandmarkDetail.createRoute(landmarkId))
+                onNavigateToLandmarkDetail = { landmarkId, landmarkIds ->
+                    navController.navigate(Screen.LandmarkDetail.createRoute(landmarkId, landmarkIds))
                 }
             )
         }
