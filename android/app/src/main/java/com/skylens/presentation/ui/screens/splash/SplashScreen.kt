@@ -52,8 +52,8 @@ fun SplashScreen(
         if (!hasLocationPermission) {
             onNavigateToPermissions()
         } else {
-            // Skip auth for now, go straight to planning
-            onNavigateToPlanning()
+            // Show optional auth screen
+            onNavigateToAuth()
         }
     }
 

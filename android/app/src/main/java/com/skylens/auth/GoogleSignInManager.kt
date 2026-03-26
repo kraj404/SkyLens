@@ -28,13 +28,9 @@ class GoogleSignInManager @Inject constructor(
      */
     suspend fun signIn(webClientId: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            // Generate nonce for security
-            val nonce = generateNonce()
-
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(webClientId)
-                .setNonce(nonce)
                 .build()
 
             val request = GetCredentialRequest.Builder()

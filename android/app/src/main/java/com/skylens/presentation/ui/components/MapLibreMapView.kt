@@ -24,6 +24,7 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -50,7 +51,7 @@ fun MapLibreMapView(
     var lastRouteSize by remember { mutableStateOf(0) }
     var lastLandmarkIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var hasInitializedCamera by remember { mutableStateOf(false) }
-    var aircraftMarker by remember { mutableStateOf<org.maplibre.android.annotations.Marker?>(null) }
+    var aircraftSourceAdded by remember { mutableStateOf(false) }
 
     AndroidView(
         modifier = modifier,
@@ -68,22 +69,33 @@ fun MapLibreMapView(
             android.util.Log.d("MapLibreMapView", "shouldUpdate=$shouldUpdate (lastLandmarkCount=$lastLandmarkCount, lastRouteSize=$lastRouteSize, landmarkIds changed=${currentLandmarkIds != lastLandmarkIds})")
 
             if (!shouldUpdate) {
-                // Just update position marker
+                // Just update aircraft position via GeoJsonSource (smooth update)
                 mapInstance?.let { map ->
                     currentPosition?.let { position ->
                         android.util.Log.d("MapLibreMapView", "Updating position only: ${position.latitude}, ${position.longitude}")
 
-                        // Remove old aircraft marker
-                        aircraftMarker?.let { map.removeMarker(it) }
+                        map.getStyle { style ->
+                            val source = style.getSourceAs<GeoJsonSource>("aircraft-source")
+                            if (source != null) {
+                                // Update existing source
+                                source.setGeoJson(Point.fromLngLat(position.longitude, position.latitude))
+                            } else {
+                                // Create source and layer if they don't exist yet
+                                val aircraftPoint = Point.fromLngLat(position.longitude, position.latitude)
+                                style.addSource(GeoJsonSource("aircraft-source", aircraftPoint))
 
-                        // Add new aircraft marker at updated position
-                        val newMarker = map.addMarker(
-                            org.maplibre.android.annotations.MarkerOptions()
-                                .position(org.maplibre.android.geometry.LatLng(position.latitude, position.longitude))
-                                .title("✈️ Your Position")
-                                .snippet("Alt: ${position.altitude}ft, Speed: ${position.speed}km/h")
-                        )
-                        aircraftMarker = newMarker
+                                style.addLayer(
+                                    org.maplibre.android.style.layers.CircleLayer("aircraft-layer", "aircraft-source")
+                                        .withProperties(
+                                            PropertyFactory.circleRadius(8f),
+                                            PropertyFactory.circleColor(android.graphics.Color.BLUE),
+                                            PropertyFactory.circleStrokeWidth(2f),
+                                            PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE)
+                                        )
+                                )
+                                aircraftSourceAdded = true
+                            }
+                        }
                     }
                 }
                 return@AndroidView
@@ -101,6 +113,7 @@ fun MapLibreMapView(
 
                     // Reset camera flag when landmarks change to allow re-centering
                     hasInitializedCamera = false
+                    aircraftSourceAdded = false
 
                     // Add route line if available
                     if (routePoints.isNotEmpty()) {
@@ -179,15 +192,29 @@ fun MapLibreMapView(
                         true
                     }
 
-                    // Add aircraft marker
+                    // Add aircraft marker using GeoJsonSource for smooth updates
                     currentPosition?.let { position ->
-                        val newAircraftMarker = map.addMarker(
-                            MarkerOptions()
-                                .position(LatLng(position.latitude, position.longitude))
-                                .title("✈️ Your Position")
-                                .snippet("Alt: ${position.altitude}ft, Speed: ${position.speed}km/h")
-                        )
-                        aircraftMarker = newAircraftMarker
+                        // Add aircraft source and layer (only once)
+                        if (!aircraftSourceAdded) {
+                            val aircraftPoint = Point.fromLngLat(position.longitude, position.latitude)
+                            style.addSource(GeoJsonSource("aircraft-source", aircraftPoint))
+
+                            // Use a circle layer for the aircraft position
+                            style.addLayer(
+                                org.maplibre.android.style.layers.CircleLayer("aircraft-layer", "aircraft-source")
+                                    .withProperties(
+                                        PropertyFactory.circleRadius(8f),
+                                        PropertyFactory.circleColor(android.graphics.Color.BLUE),
+                                        PropertyFactory.circleStrokeWidth(2f),
+                                        PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE)
+                                    )
+                            )
+                            aircraftSourceAdded = true
+                        } else {
+                            // Update existing source
+                            val source = style.getSourceAs<GeoJsonSource>("aircraft-source")
+                            source?.setGeoJson(Point.fromLngLat(position.longitude, position.latitude))
+                        }
 
                         // Center on aircraft if no route
                         if (routePoints.isEmpty()) {

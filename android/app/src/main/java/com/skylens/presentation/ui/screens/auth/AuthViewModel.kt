@@ -26,8 +26,7 @@ class AuthViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Initial)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    // TODO: Load from BuildConfig
-    private val webClientId = "your-web-client-id.apps.googleusercontent.com"
+    private val webClientId = "289309407597-rpd6k933a6rulukjahgoqf7eb0mmv9vv.apps.googleusercontent.com"
 
     init {
         checkExistingSession()

@@ -237,6 +237,7 @@ class FlightMapViewModel @Inject constructor(
     fun stopFlight() {
         trackingJob?.cancel()
         narrationJob?.cancel()
+        mockFlightJob?.cancel()
         _uiState.update { it.copy(isTracking = false) }
 
         // Finalize trip
@@ -558,7 +559,7 @@ class FlightMapViewModel @Inject constructor(
 
                         android.util.Log.d("FlightMapViewModel", "Position $index/${routePoints.size}: $lat, $lon - ${nearby.size} landmarks nearby")
 
-                        delay(500) // Update every 0.5 seconds for fast animation
+                        delay(1000) // Update every 1 second for smooth animation
                     }
 
                     // Flight complete - finalize trip

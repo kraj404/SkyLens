@@ -12,9 +12,8 @@ import javax.inject.Singleton
 @Singleton
 class SupabaseClientProvider @Inject constructor() {
 
-    // TODO: Load from BuildConfig
-    private val supabaseUrl = "https://your-project.supabase.co"
-    private val supabaseKey = "your-anon-key"
+    private val supabaseUrl = "https://qmmxycrgdzburefqemxl.supabase.co"
+    private val supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFtbXh5Y3JnZHpidXJlZnFlbXhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDczNTksImV4cCI6MjA5MDEyMzM1OX0.bgyg7mSwAqM1qAkJzozM31Of6vI64cPmhxrUgtMJTpc"
 
     val client: SupabaseClient by lazy {
         createSupabaseClient(
