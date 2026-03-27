@@ -1,6 +1,8 @@
 package com.skylens.ai
 
+import com.skylens.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,16 +16,19 @@ import javax.inject.Singleton
 @Singleton
 class ClaudeApiClient @Inject constructor(
     private val okHttpClient: OkHttpClient
-) {
+) : AiProvider {
 
-    private val apiKey = "sk-ant-placeholder" // TODO: Load from BuildConfig
+    private val apiKey = BuildConfig.CLAUDE_API_KEY
     private val baseUrl = "https://api.anthropic.com/v1"
     private val model = "claude-haiku-4.5-20251001"
+    private val maxRetries = 3
+
+    override fun getProviderName(): String = "Claude"
 
     /**
      * Generate a story for a landmark
      */
-    suspend fun generateLandmarkStory(
+    override suspend fun generateLandmarkStory(
         landmarkName: String,
         landmarkType: String,
         elevation: Int?,
@@ -107,11 +112,11 @@ class ClaudeApiClient @Inject constructor(
     /**
      * Generate real-time flight narrator commentary
      */
-    suspend fun generateFlightNarration(
+    override suspend fun generateFlightNarration(
         currentRegion: String,
         nearbyLandmarks: List<String>,
         altitude: Int,
-        context: String = ""
+        context: String
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val prompt = buildString {
@@ -137,11 +142,11 @@ class ClaudeApiClient @Inject constructor(
     /**
      * Answer user questions about landmarks
      */
-    suspend fun answerLandmarkQuestion(
+    override suspend fun answerLandmarkQuestion(
         question: String,
         currentPosition: String,
         nearbyLandmarks: List<String>,
-        conversationHistory: List<Pair<String, String>> = emptyList()
+        conversationHistory: List<Pair<String, String>>
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val messages = mutableListOf<JSONObject>()
@@ -184,7 +189,7 @@ class ClaudeApiClient @Inject constructor(
     /**
      * Generate trip summary after flight
      */
-    suspend fun generateTripSummary(
+    override suspend fun generateTripSummary(
         departureAirport: String,
         arrivalAirport: String,
         landmarksSeen: List<String>,
@@ -212,7 +217,7 @@ class ClaudeApiClient @Inject constructor(
     /**
      * Generate AI caption for landmark photo
      */
-    suspend fun generatePhotoCaption(
+    override suspend fun generatePhotoCaption(
         landmarkName: String,
         photoDescription: String
     ): Result<String> = withContext(Dispatchers.IO) {
@@ -228,7 +233,7 @@ class ClaudeApiClient @Inject constructor(
     /**
      * Generate prediction context for upcoming landmark
      */
-    suspend fun generatePredictionContext(
+    override suspend fun generatePredictionContext(
         landmarkName: String,
         landmarkType: String,
         minutesUntilVisible: Int
@@ -248,79 +253,133 @@ class ClaudeApiClient @Inject constructor(
     }
 
     /**
-     * Core Claude API call method
+     * Core Claude API call method with retry logic
      */
     private suspend fun callClaude(prompt: String): String {
-        val requestBody = JSONObject().apply {
-            put("model", model)
-            put("max_tokens", 1024)
-            put("messages", JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", prompt)
-                })
-            })
+        var lastException: Exception? = null
+
+        repeat(maxRetries) { attempt ->
+            try {
+                val requestBody = JSONObject().apply {
+                    put("model", model)
+                    put("max_tokens", 1024)
+                    put("messages", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("content", prompt)
+                        })
+                    })
+                }
+
+                val request = Request.Builder()
+                    .url("$baseUrl/messages")
+                    .addHeader("x-api-key", apiKey)
+                    .addHeader("anthropic-version", "2023-06-01")
+                    .addHeader("content-type", "application/json")
+                    .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val response = okHttpClient.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                        ?: throw Exception("Empty response from Claude API")
+
+                    val json = JSONObject(responseBody)
+                    val contentArray = json.getJSONArray("content")
+                    val textContent = contentArray.getJSONObject(0)
+
+                    return textContent.getString("text")
+                }
+
+                // Handle rate limiting and server errors with retry
+                if (response.code in listOf(429, 500, 503)) {
+                    lastException = Exception("Claude API error: ${response.code}")
+                    if (attempt < maxRetries - 1) {
+                        // Exponential backoff: 1s, 2s, 4s
+                        val delayMs = 1000L * (1 shl attempt)
+                        delay(delayMs)
+                        return@repeat
+                    }
+                }
+
+                throw Exception("Claude API error: ${response.code}")
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < maxRetries - 1) {
+                    // Exponential backoff for network errors
+                    val delayMs = 1000L * (1 shl attempt)
+                    delay(delayMs)
+                } else {
+                    throw e
+                }
+            }
         }
 
-        val request = Request.Builder()
-            .url("$baseUrl/messages")
-            .addHeader("x-api-key", apiKey)
-            .addHeader("anthropic-version", "2023-06-01")
-            .addHeader("content-type", "application/json")
-            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        val response = okHttpClient.newCall(request).execute()
-
-        if (!response.isSuccessful) {
-            throw Exception("Claude API error: ${response.code}")
-        }
-
-        val responseBody = response.body?.string()
-            ?: throw Exception("Empty response from Claude API")
-
-        val json = JSONObject(responseBody)
-        val contentArray = json.getJSONArray("content")
-        val textContent = contentArray.getJSONObject(0)
-
-        return textContent.getString("text")
+        throw lastException ?: Exception("Unknown error")
     }
 
     /**
-     * Claude API call with conversation history
+     * Claude API call with conversation history and retry logic
      */
     private suspend fun callClaudeWithMessages(
         systemPrompt: String,
         messages: List<JSONObject>
     ): String {
-        val requestBody = JSONObject().apply {
-            put("model", model)
-            put("max_tokens", 1024)
-            put("system", systemPrompt)
-            put("messages", JSONArray(messages))
+        var lastException: Exception? = null
+
+        repeat(maxRetries) { attempt ->
+            try {
+                val requestBody = JSONObject().apply {
+                    put("model", model)
+                    put("max_tokens", 1024)
+                    put("system", systemPrompt)
+                    put("messages", JSONArray(messages))
+                }
+
+                val request = Request.Builder()
+                    .url("$baseUrl/messages")
+                    .addHeader("x-api-key", apiKey)
+                    .addHeader("anthropic-version", "2023-06-01")
+                    .addHeader("content-type", "application/json")
+                    .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val response = okHttpClient.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                        ?: throw Exception("Empty response from Claude API")
+
+                    val json = JSONObject(responseBody)
+                    val contentArray = json.getJSONArray("content")
+                    val textContent = contentArray.getJSONObject(0)
+
+                    return textContent.getString("text")
+                }
+
+                // Handle rate limiting and server errors with retry
+                if (response.code in listOf(429, 500, 503)) {
+                    lastException = Exception("Claude API error: ${response.code}")
+                    if (attempt < maxRetries - 1) {
+                        val delayMs = 1000L * (1 shl attempt)
+                        delay(delayMs)
+                        return@repeat
+                    }
+                }
+
+                throw Exception("Claude API error: ${response.code}")
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < maxRetries - 1) {
+                    val delayMs = 1000L * (1 shl attempt)
+                    delay(delayMs)
+                } else {
+                    throw e
+                }
+            }
         }
 
-        val request = Request.Builder()
-            .url("$baseUrl/messages")
-            .addHeader("x-api-key", apiKey)
-            .addHeader("anthropic-version", "2023-06-01")
-            .addHeader("content-type", "application/json")
-            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        val response = okHttpClient.newCall(request).execute()
-
-        if (!response.isSuccessful) {
-            throw Exception("Claude API error: ${response.code}")
-        }
-
-        val responseBody = response.body?.string()
-            ?: throw Exception("Empty response from Claude API")
-
-        val json = JSONObject(responseBody)
-        val contentArray = json.getJSONArray("content")
-        val textContent = contentArray.getJSONObject(0)
-
-        return textContent.getString("text")
+        throw lastException ?: Exception("Unknown error")
     }
 }

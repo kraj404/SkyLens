@@ -16,6 +16,9 @@ interface LandmarkDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllLandmarks(landmarks: List<LandmarkEntity>)
 
+    @Query("UPDATE landmarks SET ai_story = :aiStory WHERE id = :landmarkId")
+    suspend fun updateLandmarkStory(landmarkId: String, aiStory: String)
+
     @Query("SELECT * FROM landmarks WHERE id = :landmarkId LIMIT 1")
     suspend fun getLandmarkById(landmarkId: String): LandmarkEntity?
 

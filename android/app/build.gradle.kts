@@ -21,6 +21,18 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Claude API Key from local.properties
+        val properties = org.jetbrains.kotlin.konan.properties.Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.inputStream())
+        }
+        val claudeApiKey = properties.getProperty("CLAUDE_API_KEY") ?: System.getenv("CLAUDE_API_KEY") ?: "sk-ant-placeholder"
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: System.getenv("GEMINI_API_KEY") ?: "your-gemini-api-key"
+
+        buildConfigField("String", "CLAUDE_API_KEY", "\"$claudeApiKey\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {

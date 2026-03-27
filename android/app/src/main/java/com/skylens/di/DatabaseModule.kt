@@ -3,6 +3,7 @@ package com.skylens.di
 import android.content.Context
 import androidx.room.Room
 import com.skylens.data.local.SkyLensDatabase
+import com.skylens.data.local.dao.AiUsageDao
 import com.skylens.data.local.dao.AirportDao
 import com.skylens.data.local.dao.LandmarkDao
 import com.skylens.data.local.dao.TripDao
@@ -47,5 +48,11 @@ object DatabaseModule {
     @Singleton
     fun provideTripDao(database: SkyLensDatabase): TripDao {
         return database.tripDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAiUsageDao(database: SkyLensDatabase): AiUsageDao {
+        return database.aiUsageDao()
     }
 }

@@ -2,6 +2,7 @@ package com.skylens.presentation.ui.screens.flight
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.skylens.ai.AiStoryManager
 import com.skylens.ai.ClaudeApiClient
 import com.skylens.data.repository.AirportRepository
 import com.skylens.data.repository.LandmarkRepository
@@ -42,6 +43,7 @@ class FlightMapViewModel @Inject constructor(
     private val landmarkRepository: LandmarkRepository,
     private val tripRepository: TripRepository,
     private val claudeApiClient: ClaudeApiClient,
+    private val aiStoryManager: AiStoryManager,
     private val geoCalculator: GeoCalculator,
     private val notificationManager: com.skylens.notifications.LandmarkNotificationManager
 ) : ViewModel() {
@@ -373,7 +375,7 @@ class FlightMapViewModel @Inject constructor(
 
     private fun generatePredictionAI(predicted: PredictedLandmark) {
         viewModelScope.launch {
-            val result = claudeApiClient.generatePredictionContext(
+            val result = aiStoryManager.getPredictionContext(
                 predicted.landmark.name,
                 predicted.landmark.type.name,
                 predicted.visibleInMinutes
@@ -398,13 +400,13 @@ class FlightMapViewModel @Inject constructor(
     private fun startAINarrator() {
         narrationJob = viewModelScope.launch {
             while (true) {
-                delay(30000) // Update every 30 seconds
+                delay(60000) // Update every 60 seconds (reduced from 30s to save costs)
 
                 val position = _uiState.value.currentPosition ?: continue
                 val landmarks = _uiState.value.nearbyLandmarks.take(5)
 
                 if (landmarks.isNotEmpty()) {
-                    val result = claudeApiClient.generateFlightNarration(
+                    val result = aiStoryManager.getFlightNarration(
                         currentRegion = landmarks.first().country ?: "unknown region",
                         nearbyLandmarks = landmarks.map { it.name },
                         altitude = position.altitude ?: 35000
@@ -430,17 +432,13 @@ class FlightMapViewModel @Inject constructor(
 
             _uiState.update { it.copy(isLoading = true) }
 
-            val result = claudeApiClient.generateLandmarkStory(
-                landmarkName = landmark.name,
-                landmarkType = landmark.type.name,
-                elevation = landmark.elevationM,
-                country = landmark.country
-            )
+            val result = aiStoryManager.getStoryForLandmark(landmark.id)
 
             _uiState.update { it.copy(isLoading = false) }
 
             if (result.isSuccess) {
-                // Cache the story in database
+                // Story is already cached by AiStoryManager
+                // Just trigger UI refresh
                 val updatedLandmark = landmark.copy(aiStory = result.getOrNull())
                 landmarkRepository.insertLandmarks(listOf(updatedLandmark))
             }
@@ -460,7 +458,8 @@ class FlightMapViewModel @Inject constructor(
             val result = claudeApiClient.answerLandmarkQuestion(
                 question = question,
                 currentPosition = "${position.latitude}, ${position.longitude}",
-                nearbyLandmarks = landmarks.map { it.name }
+                nearbyLandmarks = landmarks.map { it.name },
+                conversationHistory = emptyList()
             )
 
             _uiState.update { it.copy(isLoading = false) }
