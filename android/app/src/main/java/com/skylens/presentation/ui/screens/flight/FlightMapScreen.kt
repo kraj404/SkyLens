@@ -104,6 +104,13 @@ fun FlightMapScreen(
                                 text = "Speed: ${position.speed ?: 0} km/h",
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            uiState.gpsAccuracy?.let { accuracy ->
+                                Text(
+                                    text = "GPS: ±${accuracy.toInt()}m",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         Text(
@@ -137,13 +144,39 @@ fun FlightMapScreen(
                 }
             }
 
+            // GPS Mode Toggle (only show when not tracking)
+            if (!uiState.isTracking) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .padding(top = 160.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (uiState.isRealGps) "📡 Real GPS" else "🎮 Mock",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Switch(
+                            checked = uiState.isRealGps,
+                            onCheckedChange = { viewModel.setGpsMode(it) }
+                        )
+                    }
+                }
+            }
+
             // Start/Stop Flight Button
             FloatingActionButton(
                 onClick = {
                     if (uiState.isTracking) {
                         viewModel.stopFlight()
                     } else {
-                        viewModel.startMockFlight(departure, arrival)
+                        viewModel.startFlightTracking(departure, arrival)
                     }
                 },
                 modifier = Modifier

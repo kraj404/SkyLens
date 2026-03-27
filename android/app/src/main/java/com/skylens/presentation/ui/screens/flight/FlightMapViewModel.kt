@@ -30,7 +30,9 @@ data class FlightMapUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val currentTripId: String? = null,
-    val routePoints: List<Pair<Double, Double>> = emptyList() // Lat/Lon pairs for route line
+    val routePoints: List<Pair<Double, Double>> = emptyList(), // Lat/Lon pairs for route line
+    val isRealGps: Boolean = false, // True = real GPS, False = mock simulation
+    val gpsAccuracy: Float? = null // GPS accuracy in meters (only for real GPS)
 )
 
 @HiltViewModel
@@ -183,16 +185,39 @@ class FlightMapViewModel @Inject constructor(
     }
 
     /**
-     * Start flight tracking
+     * Set GPS tracking mode
      */
-    fun startFlight(departureAirport: String, arrivalAirport: String) {
+    fun setGpsMode(useRealGps: Boolean) {
+        _uiState.update { it.copy(isRealGps = useRealGps) }
+    }
+
+    /**
+     * Start flight tracking (dispatches to real GPS or mock based on mode)
+     */
+    fun startFlightTracking(departureAirport: String, arrivalAirport: String) {
+        val useRealGps = _uiState.value.isRealGps
+
+        if (useRealGps) {
+            startRealGpsFlight(departureAirport, arrivalAirport)
+        } else {
+            startMockFlight(departureAirport, arrivalAirport)
+        }
+    }
+
+    /**
+     * Start real GPS flight tracking
+     */
+    private fun startRealGpsFlight(departureAirport: String, arrivalAirport: String) {
         if (_uiState.value.isTracking) return
 
-        // Create and save new trip
-        currentTripId = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-
         viewModelScope.launch {
+            // First initialize the route and load landmarks
+            initializeRoute(departureAirport, arrivalAirport)
+
+            // Create and save new trip
+            currentTripId = UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+
             try {
                 val trip = com.skylens.domain.model.Trip(
                     id = currentTripId!!,
@@ -210,25 +235,28 @@ class FlightMapViewModel @Inject constructor(
             } catch (e: Exception) {
                 android.util.Log.e("FlightMapViewModel", "Error saving trip", e)
             }
-        }
 
-        _uiState.update { it.copy(isTracking = true, currentTripId = currentTripId) }
+            _uiState.update { it.copy(isTracking = true, currentTripId = currentTripId) }
 
-        // Start location tracking
-        trackingJob = viewModelScope.launch {
-            flightTracker.trackFlight().collect { position ->
-                _uiState.update { it.copy(currentPosition = position) }
+            // Start real GPS location tracking
+            trackingJob = viewModelScope.launch {
+                flightTracker.trackFlight().collect { position ->
+                    _uiState.update { it.copy(
+                        currentPosition = position,
+                        gpsAccuracy = position.accuracy
+                    ) }
 
-                // Update nearby landmarks
-                updateNearbyLandmarks(position)
+                    // Update nearby landmarks
+                    updateNearbyLandmarks(position)
 
-                // Update predictions
-                updatePredictions(position)
+                    // Update predictions
+                    updatePredictions(position)
+                }
             }
-        }
 
-        // Start AI narrator (updates every 30 seconds)
-        startAINarrator()
+            // Start AI narrator (updates every 30 seconds)
+            startAINarrator()
+        }
     }
 
     /**
