@@ -30,9 +30,28 @@ android {
         }
         val claudeApiKey = properties.getProperty("CLAUDE_API_KEY") ?: System.getenv("CLAUDE_API_KEY") ?: "sk-ant-placeholder"
         val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: System.getenv("GEMINI_API_KEY") ?: "your-gemini-api-key"
+        val pixabayApiKey = properties.getProperty("PIXABAY_API_KEY") ?: System.getenv("PIXABAY_API_KEY") ?: ""
+        val pexelsApiKey = properties.getProperty("PEXELS_API_KEY") ?: System.getenv("PEXELS_API_KEY") ?: ""
 
         buildConfigField("String", "CLAUDE_API_KEY", "\"$claudeApiKey\"")
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "PIXABAY_API_KEY", "\"$pixabayApiKey\"")
+        buildConfigField("String", "PEXELS_API_KEY", "\"$pexelsApiKey\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            val properties = org.jetbrains.kotlin.konan.properties.Properties()
+            val localPropertiesFile = rootProject.file("local.properties")
+            if (localPropertiesFile.exists()) {
+                properties.load(localPropertiesFile.inputStream())
+            }
+
+            storeFile = file(properties.getProperty("RELEASE_STORE_FILE") ?: "release.keystore")
+            storePassword = properties.getProperty("RELEASE_STORE_PASSWORD")
+            keyAlias = properties.getProperty("RELEASE_KEY_ALIAS")
+            keyPassword = properties.getProperty("RELEASE_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
@@ -42,6 +61,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

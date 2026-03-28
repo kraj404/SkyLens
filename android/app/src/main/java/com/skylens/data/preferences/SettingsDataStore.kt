@@ -21,6 +21,7 @@ class SettingsDataStore @Inject constructor(
 ) {
     companion object {
         val AI_PROVIDER_KEY = stringPreferencesKey("ai_provider")
+        val USE_METRIC_KEY = stringPreferencesKey("use_metric")
     }
 
     val aiProviderFlow: Flow<AiProviderType> = context.dataStore.data.map { preferences ->
@@ -32,9 +33,19 @@ class SettingsDataStore @Inject constructor(
         }
     }
 
+    val useMetricFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[USE_METRIC_KEY]?.toBoolean() ?: false
+    }
+
     suspend fun setAiProvider(provider: AiProviderType) {
         context.dataStore.edit { preferences ->
             preferences[AI_PROVIDER_KEY] = provider.name
+        }
+    }
+
+    suspend fun setUseMetric(useMetric: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[USE_METRIC_KEY] = useMetric.toString()
         }
     }
 

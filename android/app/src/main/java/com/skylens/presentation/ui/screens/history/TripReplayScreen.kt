@@ -16,10 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.skylens.domain.model.FlightPosition
+import com.skylens.geo.GeoCalculator
 import com.skylens.presentation.ui.components.MapLibreMapView
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
+import javax.inject.Inject
+import kotlin.math.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -369,27 +372,54 @@ private fun generateReplayPositions(
     val depCoords = airportCoords[departure] ?: Pair(0.0, 0.0)
     val arrCoords = airportCoords[arrival] ?: Pair(0.0, 0.0)
 
-    val start = FlightPosition(depCoords.first, depCoords.second, 0, 0f, 0f, 10f, 0L)
-    val end = FlightPosition(arrCoords.first, arrCoords.second, 10668, 850f, 270f, 10f, 0L)
+    // Use great circle calculation for curved route
+    val lat1 = Math.toRadians(depCoords.first)
+    val lon1 = Math.toRadians(depCoords.second)
+    val lat2 = Math.toRadians(arrCoords.first)
+    val lon2 = Math.toRadians(arrCoords.second)
+
+    // Calculate angular distance
+    val dLon = lon2 - lon1
+    val angularDistance = acos(
+        sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(dLon)
+    )
 
     return List(numPositions) { i ->
-        val fraction = i.toFloat() / (numPositions - 1)
+        val fraction = i.toDouble() / (numPositions - 1)
 
-        // Linear interpolation
-        val lat = start.latitude + (end.latitude - start.latitude) * fraction
-        val lon = start.longitude + (end.longitude - start.longitude) * fraction
-        val alt = (start.altitude + (end.altitude - start.altitude) * fraction).toInt()
-        val speed = start.speed + (end.speed - start.speed) * fraction
-        val heading = start.heading + (end.heading - start.heading) * fraction
+        // Great circle interpolation
+        val a = sin((1 - fraction) * angularDistance) / sin(angularDistance)
+        val b = sin(fraction * angularDistance) / sin(angularDistance)
+
+        val x = a * cos(lat1) * cos(lon1) + b * cos(lat2) * cos(lon2)
+        val y = a * cos(lat1) * sin(lon1) + b * cos(lat2) * sin(lon2)
+        val z = a * sin(lat1) + b * sin(lat2)
+
+        val lat = atan2(z, sqrt(x * x + y * y))
+        val lon = atan2(y, x)
+
+        // Altitude profile (cruise at 10668m / 35,000 ft)
+        val altitude = when {
+            fraction < 0.1 -> (fraction * 10) * 10668 // Climb
+            fraction > 0.9 -> ((1 - fraction) * 10) * 10668 // Descent
+            else -> 10668 // Cruise
+        }
+
+        // Speed profile
+        val speed = when {
+            fraction < 0.1 -> 250f + (fraction.toFloat() * 10) * 600f // Accelerate to 850 km/h
+            fraction > 0.9 -> 850f - ((fraction.toFloat() - 0.9f) * 10) * 600f // Decelerate
+            else -> 850f // Cruise speed
+        }
 
         FlightPosition(
-            latitude = lat,
-            longitude = lon,
-            altitude = alt,
+            latitude = Math.toDegrees(lat),
+            longitude = Math.toDegrees(lon),
+            altitude = altitude.toInt(),
             speed = speed,
-            heading = heading,
+            heading = 0f, // Can calculate bearing if needed
             accuracy = 10f,
-            timestamp = System.currentTimeMillis() + (i * 60000L) // 1 min intervals
+            timestamp = System.currentTimeMillis() + (i * 60000L)
         )
     }
 }

@@ -12,8 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.skylens.domain.model.Landmark
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,13 +68,18 @@ fun LandmarkDetailSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Photos
-            if (landmark.photoUrls.isNotEmpty()) {
+            val photos = landmark.photoUrls + landmark.photoFiles.map { "file://$it" }
+            if (photos.isNotEmpty()) {
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 0.dp)
                 ) {
-                    items(landmark.photoUrls) { photoUrl ->
+                    items(photos) { photoUrl ->
                         AsyncImage(
-                            model = photoUrl,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(photoUrl)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = "${landmark.name} photo",
                             modifier = Modifier
                                 .width(200.dp)

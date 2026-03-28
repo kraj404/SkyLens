@@ -19,8 +19,23 @@ interface LandmarkDao {
     @Query("UPDATE landmarks SET ai_story = :aiStory WHERE id = :landmarkId")
     suspend fun updateLandmarkStory(landmarkId: String, aiStory: String)
 
+    @Query("UPDATE landmarks SET photo_urls = :photoUrls WHERE id = :landmarkId")
+    suspend fun updateLandmarkPhoto(landmarkId: String, photoUrls: String?)
+
+    @Query("UPDATE landmarks SET photo_files = :photoFiles WHERE id = :landmarkId")
+    suspend fun updateLandmarkPhotoFiles(landmarkId: String, photoFiles: String?)
+
+    @Query("UPDATE landmarks SET general_fact = :generalFact WHERE id = :landmarkId")
+    suspend fun updateLandmarkGeneralFact(landmarkId: String, generalFact: String)
+
+    @Query("UPDATE landmarks SET historical_fact = :historicalFact WHERE id = :landmarkId")
+    suspend fun updateLandmarkHistoricalFact(landmarkId: String, historicalFact: String)
+
     @Query("SELECT * FROM landmarks WHERE id = :landmarkId LIMIT 1")
     suspend fun getLandmarkById(landmarkId: String): LandmarkEntity?
+
+    @Query("SELECT * FROM landmarks")
+    suspend fun getAllLandmarksSync(): List<LandmarkEntity>
 
     @Query("""
         SELECT * FROM landmarks

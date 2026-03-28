@@ -64,6 +64,22 @@ interface AiProvider {
     ): Result<String>
 
     /**
+     * Generate general fact about a landmark
+     */
+    suspend fun generateGeneralFact(
+        landmarkName: String,
+        landmarkType: String
+    ): Result<String>
+
+    /**
+     * Generate historical fact about a landmark
+     */
+    suspend fun generateHistoricalFact(
+        landmarkName: String,
+        landmarkType: String
+    ): Result<String>
+
+    /**
      * Get provider name for display
      */
     fun getProviderName(): String

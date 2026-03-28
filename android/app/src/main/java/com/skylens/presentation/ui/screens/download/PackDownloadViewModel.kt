@@ -1,14 +1,21 @@
 package com.skylens.presentation.ui.screens.download
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.skylens.data.repository.OfflinePackRepository
+import com.skylens.workers.PackDownloadWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 sealed class PackDownloadUiState {
@@ -17,7 +24,7 @@ sealed class PackDownloadUiState {
     data class ReadyToDownload(
         val packSizeMB: Int,
         val landmarkCount: Int,
-        val tileCount: Int
+        val photoCount: Int
     ) : PackDownloadUiState()
     data class Downloading(
         val progress: Float,
@@ -29,13 +36,15 @@ sealed class PackDownloadUiState {
 
 @HiltViewModel
 class PackDownloadViewModel @Inject constructor(
-    private val offlinePackRepository: OfflinePackRepository
+    private val offlinePackRepository: OfflinePackRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<PackDownloadUiState>(PackDownloadUiState.Initial)
     val uiState: StateFlow<PackDownloadUiState> = _uiState.asStateFlow()
 
     private var currentRoute: Pair<String, String>? = null
+    private var workRequestId: UUID? = null
 
     fun startDownload(departure: String, arrival: String) {
         currentRoute = departure to arrival
@@ -46,28 +55,17 @@ class PackDownloadViewModel @Inject constructor(
                 // Check if pack already exists
                 val existingPack = offlinePackRepository.getOfflinePack(departure, arrival)
 
-                if (existingPack != null) {
+                if (existingPack != null && existingPack.status == "completed") {
                     // Pack already exists, skip to completed
                     _uiState.value = PackDownloadUiState.Completed
                     return@launch
                 }
 
-                // Simulate checking pack info from API
-                // Get actual landmark count from database
-                delay(500)
-
-                val actualLandmarkCount = try {
-                    // Query landmarks in a rough corridor (for now just query a region)
-                    50 // Simplified count for mock
-                } catch (e: Exception) {
-                    20
-                }
-
-                // Show pack info with realistic numbers
+                // Show estimated pack info
                 _uiState.value = PackDownloadUiState.ReadyToDownload(
-                    packSizeMB = 25, // More realistic size
-                    landmarkCount = actualLandmarkCount,
-                    tileCount = 500 // Reduced tile count
+                    packSizeMB = 50, // Estimate: 50 landmarks × 2 photos × 500KB
+                    landmarkCount = 50, // Typical route
+                    photoCount = 100 // 2 per landmark
                 )
             } catch (e: Exception) {
                 _uiState.value = PackDownloadUiState.Error(
@@ -81,40 +79,58 @@ class PackDownloadViewModel @Inject constructor(
         val route = currentRoute ?: return
         viewModelScope.launch {
             try {
-                // Simulate download with progress updates
-                val tasks = listOf(
-                    "Downloading landmarks..." to 0.2f,
-                    "Downloading map tiles..." to 0.6f,
-                    "Downloading photos..." to 0.8f,
-                    "Extracting pack..." to 0.95f,
-                    "Finalizing..." to 1.0f
-                )
+                // Create WorkManager request
+                val workRequest = OneTimeWorkRequestBuilder<PackDownloadWorker>()
+                    .setInputData(workDataOf(
+                        "departure" to route.first,
+                        "arrival" to route.second
+                    ))
+                    .build()
 
-                for ((task, targetProgress) in tasks) {
-                    _uiState.value = PackDownloadUiState.Downloading(
-                        progress = targetProgress,
-                        currentTask = task
-                    )
+                workRequestId = workRequest.id
 
-                    // Simulate download time
-                    delay(2000)
+                // Enqueue the work
+                WorkManager.getInstance(context).enqueue(workRequest)
 
-                    // TODO: Replace with actual download logic:
-                    // 1. Download ZIP from backend API
-                    // 2. Extract landmarks, tiles, airports
-                    // 3. Insert into Room database
-                    // 4. Mark pack as downloaded
-                }
-
-                // Mark as completed in repository
-                offlinePackRepository.markPackDownloaded(route.first, route.second)
-
-                _uiState.value = PackDownloadUiState.Completed
+                // Observe progress
+                observeWorkProgress(workRequest.id)
             } catch (e: Exception) {
                 _uiState.value = PackDownloadUiState.Error(
-                    e.message ?: "Download failed"
+                    e.message ?: "Failed to start download"
                 )
             }
+        }
+    }
+
+    private fun observeWorkProgress(workId: UUID) {
+        viewModelScope.launch {
+            WorkManager.getInstance(context)
+                .getWorkInfoByIdFlow(workId)
+                .collect { workInfo ->
+                    when (workInfo?.state) {
+                        WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING -> {
+                            val progress = workInfo.progress.getFloat("progress", 0f)
+                            _uiState.value = PackDownloadUiState.Downloading(
+                                progress = progress,
+                                currentTask = "Downloading photos and facts..."
+                            )
+                        }
+                        WorkInfo.State.SUCCEEDED -> {
+                            _uiState.value = PackDownloadUiState.Completed
+                        }
+                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                            _uiState.value = PackDownloadUiState.Error("Download failed")
+                        }
+                        else -> {}
+                    }
+                }
+        }
+    }
+
+    fun cancelDownload() {
+        workRequestId?.let { id ->
+            WorkManager.getInstance(context).cancelWorkById(id)
+            _uiState.value = PackDownloadUiState.Initial
         }
     }
 }

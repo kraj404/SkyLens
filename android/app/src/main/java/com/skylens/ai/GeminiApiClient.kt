@@ -20,7 +20,7 @@ class GeminiApiClient @Inject constructor(
 
     private val apiKey = BuildConfig.GEMINI_API_KEY
     private val baseUrl = "https://generativelanguage.googleapis.com/v1beta"
-    private val model = "gemini-1.5-flash"
+    private val model = "gemini-2.0-flash"
     private val maxRetries = 3
 
     override fun getProviderName(): String = "Gemini"
@@ -158,6 +158,50 @@ class GeminiApiClient @Inject constructor(
                 append("$landmarkName (a $landmarkType) will be visible in $minutesUntilVisible minutes. ")
                 append("Write a 40-word teaser about why it's worth watching for. ")
                 append("Be exciting and specific.")
+            }
+
+            val response = callGemini(prompt)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Generate general fact about a landmark
+     */
+    override suspend fun generateGeneralFact(
+        landmarkName: String,
+        landmarkType: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val prompt = buildString {
+                append("Write a single interesting fact about $landmarkName (a $landmarkType). ")
+                append("Keep it to 50 words. ")
+                append("Focus on geography, formation, or current significance. ")
+                append("Do not include historical information.")
+            }
+
+            val response = callGemini(prompt)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Generate historical fact about a landmark
+     */
+    override suspend fun generateHistoricalFact(
+        landmarkName: String,
+        landmarkType: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val prompt = buildString {
+                append("Write a single historical fact about $landmarkName (a $landmarkType). ")
+                append("Keep it to 50 words. ")
+                append("Focus on historical events, cultural significance, or ancient usage. ")
+                append("Be specific with dates or periods when possible.")
             }
 
             val response = callGemini(prompt)

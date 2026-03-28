@@ -13,7 +13,8 @@ import javax.inject.Singleton
 
 @Singleton
 class TripRepository @Inject constructor(
-    private val tripDao: TripDao
+    private val tripDao: TripDao,
+    private val landmarkRepository: LandmarkRepository
 ) {
 
     fun getAllTrips(): Flow<List<Trip>> {
@@ -60,6 +61,37 @@ class TripRepository @Inject constructor(
 
     suspend fun deleteTrip(tripId: String) {
         tripDao.deleteTrip(tripId)
+    }
+
+    /**
+     * Export trip as GeoJSON format
+     * Returns GeoJSON string containing route and landmark waypoints
+     */
+    suspend fun exportTripAsGeoJson(tripId: String): String? {
+        val trip = getTripById(tripId) ?: return null
+
+        // Build GeoJSON FeatureCollection
+        val geojson = buildString {
+            append("""{"type":"FeatureCollection","features":[""")
+
+            // Add route as LineString
+            append("""{"type":"Feature","properties":{"type":"route","departure":"${trip.departureAirport}","arrival":"${trip.arrivalAirport}","startTime":${trip.startTime},"endTime":${trip.endTime ?: "null"}},"geometry":""")
+            append(trip.routeGeoJson)
+            append("}")
+
+            // Add each landmark event as Point
+            trip.events.forEachIndexed { index, event ->
+                // Fetch landmark details
+                val landmark = landmarkRepository.getLandmarkById(event.landmarkId)
+                if (landmark != null) {
+                    append(""",{"type":"Feature","properties":{"type":"landmark","name":"${landmark.name}","landmarkType":"${landmark.type.name}","eventTime":${event.eventTime},"distance":${event.distanceKm ?: "null"}},"geometry":{"type":"Point","coordinates":[${landmark.longitude},${landmark.latitude}]}}""")
+                }
+            }
+
+            append("]}")
+        }
+
+        return geojson
     }
 
     private fun TripEntity.toDomainModel(events: List<TripEvent> = emptyList()) = Trip(

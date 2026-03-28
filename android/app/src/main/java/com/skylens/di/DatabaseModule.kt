@@ -6,6 +6,7 @@ import com.skylens.data.local.SkyLensDatabase
 import com.skylens.data.local.dao.AiUsageDao
 import com.skylens.data.local.dao.AirportDao
 import com.skylens.data.local.dao.LandmarkDao
+import com.skylens.data.local.dao.OfflinePackDao
 import com.skylens.data.local.dao.TripDao
 import dagger.Module
 import dagger.Provides
@@ -54,5 +55,11 @@ object DatabaseModule {
     @Singleton
     fun provideAiUsageDao(database: SkyLensDatabase): AiUsageDao {
         return database.aiUsageDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOfflinePackDao(database: SkyLensDatabase): OfflinePackDao {
+        return database.offlinePackDao()
     }
 }

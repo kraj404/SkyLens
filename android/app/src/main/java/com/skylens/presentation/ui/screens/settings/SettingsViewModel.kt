@@ -23,9 +23,22 @@ class SettingsViewModel @Inject constructor(
             initialValue = AiProviderType.GEMINI
         )
 
+    val useMetric: StateFlow<Boolean> = settingsDataStore.useMetricFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     fun setAiProvider(provider: AiProviderType) {
         viewModelScope.launch {
             settingsDataStore.setAiProvider(provider)
+        }
+    }
+
+    fun setUseMetric(useMetric: Boolean) {
+        viewModelScope.launch {
+            settingsDataStore.setUseMetric(useMetric)
         }
     }
 }

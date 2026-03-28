@@ -33,6 +33,9 @@ interface TripDao {
     @Query("SELECT * FROM trips WHERE user_id = :userId ORDER BY created_at DESC")
     fun getTripsByUser(userId: String): Flow<List<TripEntity>>
 
+    @Query("SELECT * FROM trips WHERE departure_airport = :departure AND arrival_airport = :arrival LIMIT 1")
+    suspend fun getTripByRoute(departure: String, arrival: String): TripEntity?
+
     @Query("DELETE FROM trips WHERE id = :tripId")
     suspend fun deleteTrip(tripId: String)
 }

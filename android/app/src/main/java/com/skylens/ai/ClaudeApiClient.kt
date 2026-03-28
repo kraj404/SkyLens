@@ -253,6 +253,50 @@ class ClaudeApiClient @Inject constructor(
     }
 
     /**
+     * Generate general fact about a landmark
+     */
+    override suspend fun generateGeneralFact(
+        landmarkName: String,
+        landmarkType: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val prompt = buildString {
+                append("Write a single interesting fact about $landmarkName (a $landmarkType). ")
+                append("Keep it to 50 words. ")
+                append("Focus on geography, formation, or current significance. ")
+                append("Do not include historical information.")
+            }
+
+            val response = callClaude(prompt)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Generate historical fact about a landmark
+     */
+    override suspend fun generateHistoricalFact(
+        landmarkName: String,
+        landmarkType: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val prompt = buildString {
+                append("Write a single historical fact about $landmarkName (a $landmarkType). ")
+                append("Keep it to 50 words. ")
+                append("Focus on historical events, cultural significance, or ancient usage. ")
+                append("Be specific with dates or periods when possible.")
+            }
+
+            val response = callClaude(prompt)
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Core Claude API call method with retry logic
      */
     private suspend fun callClaude(prompt: String): String {

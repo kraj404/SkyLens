@@ -127,4 +127,47 @@ object GeoCalculator {
         val radiusDegrees = radiusKm * degreesPerKm
         return radiusDegrees * radiusDegrees
     }
+
+    /**
+     * Generate great circle route between two points
+     * Returns list of interpolated points along the geodesic
+     */
+    fun generateGreatCircleRoute(
+        startLat: Double,
+        startLon: Double,
+        endLat: Double,
+        endLon: Double,
+        numPoints: Int
+    ): List<Pair<Double, Double>> {
+        val points = mutableListOf<Pair<Double, Double>>()
+
+        val lat1 = Math.toRadians(startLat)
+        val lon1 = Math.toRadians(startLon)
+        val lat2 = Math.toRadians(endLat)
+        val lon2 = Math.toRadians(endLon)
+
+        // Calculate angular distance
+        val dLon = lon2 - lon1
+        val angularDistance = acos(
+            sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(dLon)
+        )
+
+        // Generate interpolated points
+        for (i in 0..numPoints) {
+            val fraction = i.toDouble() / numPoints
+            val a = sin((1 - fraction) * angularDistance) / sin(angularDistance)
+            val b = sin(fraction * angularDistance) / sin(angularDistance)
+
+            val x = a * cos(lat1) * cos(lon1) + b * cos(lat2) * cos(lon2)
+            val y = a * cos(lat1) * sin(lon1) + b * cos(lat2) * sin(lon2)
+            val z = a * sin(lat1) + b * sin(lat2)
+
+            val lat = atan2(z, sqrt(x * x + y * y))
+            val lon = atan2(y, x)
+
+            points.add(Pair(Math.toDegrees(lat), Math.toDegrees(lon)))
+        }
+
+        return points
+    }
 }

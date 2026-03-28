@@ -143,9 +143,9 @@ fun MapLibreMapView(
                             val landmark = landmarks.first()
                             map.cameraPosition = CameraPosition.Builder()
                                 .target(LatLng(landmark.latitude, landmark.longitude))
-                                .zoom(7.5) // Moderate zoom level (decreased from 12.0 by 40%)
+                                .zoom(2.5) // Lower zoom for wider regional view
                                 .build()
-                            android.util.Log.d("MapLibreMapView", "Camera set to single landmark: ${landmark.name} at zoom 7.5")
+                            android.util.Log.d("MapLibreMapView", "Camera set to single landmark: ${landmark.name} at zoom 2.5")
                         } else if (landmarks.isNotEmpty()) {
                             // Multiple landmarks without route - fit to landmarks
                             val boundsBuilder = LatLngBounds.Builder()

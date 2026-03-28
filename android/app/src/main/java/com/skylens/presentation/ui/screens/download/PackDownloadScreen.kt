@@ -126,9 +126,9 @@ fun PackDownloadScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Map Tiles:")
+                                    Text("Photos:")
                                     Text(
-                                        text = "${state.tileCount}",
+                                        text = "${state.photoCount}",
                                         fontWeight = FontWeight.Bold
                                     )
                                 }

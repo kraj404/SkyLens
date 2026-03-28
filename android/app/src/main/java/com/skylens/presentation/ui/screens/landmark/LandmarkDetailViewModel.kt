@@ -14,7 +14,8 @@ import javax.inject.Inject
 data class LandmarkDetailUiState(
     val landmark: Landmark? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isLoadingPhoto: Boolean = false
 )
 
 @HiltViewModel
@@ -37,6 +38,11 @@ class LandmarkDetailViewModel @Inject constructor(
                         landmark = landmark,
                         isLoading = false
                     )
+
+                    // Fetch photo in background if not available
+                    if (landmark.photoUrls.isEmpty()) {
+                        fetchPhoto(landmarkId)
+                    }
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -48,6 +54,30 @@ class LandmarkDetailViewModel @Inject constructor(
                     isLoading = false,
                     error = "Failed to load landmark: ${e.message}"
                 )
+            }
+        }
+    }
+
+    private fun fetchPhoto(landmarkId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingPhoto = true)
+
+            try {
+                val photoUrl = landmarkRepository.fetchAndCachePhoto(landmarkId)
+
+                if (photoUrl != null) {
+                    // Reload landmark with updated photo
+                    val updatedLandmark = landmarkRepository.getLandmarkById(landmarkId)
+                    _uiState.value = _uiState.value.copy(
+                        landmark = updatedLandmark,
+                        isLoadingPhoto = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(isLoadingPhoto = false)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("LandmarkDetailVM", "Failed to fetch photo", e)
+                _uiState.value = _uiState.value.copy(isLoadingPhoto = false)
             }
         }
     }

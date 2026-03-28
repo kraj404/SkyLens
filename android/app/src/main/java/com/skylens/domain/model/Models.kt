@@ -33,7 +33,10 @@ data class Landmark(
     val wikiId: String?,
     val country: String?,
     val aiStory: String?,
-    val photoUrls: List<String>
+    val photoUrls: List<String>,
+    val photoFiles: List<String> = emptyList(),
+    val generalFact: String? = null,
+    val historicalFact: String? = null
 )
 
 enum class LandmarkType {

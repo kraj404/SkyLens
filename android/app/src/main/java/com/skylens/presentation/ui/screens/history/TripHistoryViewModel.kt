@@ -118,6 +118,14 @@ class TripHistoryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Export trip as GeoJSON file
+     * Returns GeoJSON string or null if trip not found
+     */
+    suspend fun exportTripAsGeoJson(tripId: String): String? {
+        return tripRepository.exportTripAsGeoJson(tripId)
+    }
+
     suspend fun getRouteLandmarks(departure: String, arrival: String): List<com.skylens.domain.model.Landmark> {
         // Use same logic as FlightMapViewModel.initializeRoute()
         val mockCoords = mapOf(

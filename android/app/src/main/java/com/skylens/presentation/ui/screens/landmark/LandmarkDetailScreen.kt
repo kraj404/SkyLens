@@ -83,6 +83,56 @@ fun LandmarkDetailScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            // Sticky navigation buttons at bottom
+            if ((hasPrevious || hasNext) && uiState.landmark != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 3.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (hasPrevious) {
+                            OutlinedButton(
+                                onClick = { onNavigateToLandmark(landmarkIds[currentIndex - 1]) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Previous"
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Previous")
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        if (hasNext) {
+                            OutlinedButton(
+                                onClick = { onNavigateToLandmark(landmarkIds[currentIndex + 1]) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Next")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = "Next"
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -152,7 +202,6 @@ private fun LandmarkDetailContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Map showing landmark location
@@ -160,6 +209,7 @@ private fun LandmarkDetailContent(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .height(200.dp)
             ) {
                 com.skylens.presentation.ui.components.MapLibreMapView(
@@ -171,45 +221,103 @@ private fun LandmarkDetailContent(
             }
         }
 
-        // Navigation buttons (Previous/Next)
-        if (hasPrevious || hasNext) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+        // Facts Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    if (hasPrevious) {
-                        OutlinedButton(onClick = onPrevious) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.ArrowBack,
-                                contentDescription = "Previous"
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Previous")
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(1.dp))
-                    }
+                    Text(
+                        text = "📍 Facts",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
 
-                    if (hasNext) {
-                        OutlinedButton(onClick = onNext) {
-                            Text("Next")
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
-                                contentDescription = "Next"
-                            )
-                        }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Location (one line)
+                    Text(
+                        text = "Location: ${landmark.country ?: "Unknown"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Coordinates (second line)
+                    Text(
+                        text = "Coordinates: ${String.format("%.2f", landmark.latitude)}°N, ${String.format("%.2f", landmark.longitude)}°E",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // General Fact
+                    Text(
+                        text = "🗻 General",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = landmark.generalFact ?: "Loading fact...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight.times(1.5f)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Historical Fact
+                    Text(
+                        text = "📜 Historical",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = landmark.historicalFact ?: "Loading fact...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight.times(1.5f)
+                    )
+
+                    // Type and Elevation info
+                    landmark.elevationM?.let { elevation ->
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "${landmark.type.name} • Elevation: ${elevation}m",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                        )
                     }
                 }
             }
         }
-        // Photo Gallery
+
+        // Photo Gallery (at least 2 photos)
         item {
-            landmark.photoUrls?.let { photos ->
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "📸 Photos",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val photos = landmark.photoUrls + landmark.photoFiles.map { "file://$it" }
                 if (photos.isNotEmpty()) {
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
                     ) {
                         items(photos) { photoUrl ->
                             AsyncImage(
@@ -226,90 +334,25 @@ private fun LandmarkDetailContent(
                             )
                         }
                     }
-                }
-            }
-        }
-
-        // Basic Info Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    // Type Badge
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
+                } else {
+                    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                         Text(
-                            text = landmark.type.name,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            text = "No photos available yet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Location Info
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Location",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                            )
-                            Text(
-                                text = landmark.country ?: "Unknown",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-
-                        landmark.elevationM?.let { elevation ->
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "Elevation",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = "${elevation}m",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Coordinates
-                    Text(
-                        text = "Coordinates",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = "${String.format("%.4f", landmark.latitude)}, ${String.format("%.4f", landmark.longitude)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
                 }
             }
         }
 
-        // AI Story
-        item {
-            landmark.aiStory?.let { story ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+        // AI Story (if available)
+        landmark.aiStory?.let { story ->
+            item {
+                Card(modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
@@ -320,7 +363,7 @@ private fun LandmarkDetailContent(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "About this landmark",
+                                text = "AI Story",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -337,11 +380,13 @@ private fun LandmarkDetailContent(
         }
 
         // Wikipedia Link
-        item {
-            landmark.wikiId?.let { wikiId ->
+        landmark.wikiId?.let { wikiId ->
+            item {
                 OutlinedButton(
                     onClick = { onOpenWikipedia(wikiId) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
                 ) {
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(

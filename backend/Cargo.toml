@@ -45,3 +45,13 @@ chrono = { version = "0.4", features = ["serde"] }
 # Compression
 flate2 = "1.0"
 zip = "0.6"
+
+# AWS S3-compatible storage (Cloudflare R2)
+aws-config = "1.1"
+aws-sdk-s3 = "1.15"
+
+# Async ZIP writing
+async-zip = { version = "0.0.16", features = ["tokio"] }
+
+# Parallel processing
+rayon = "1.8"

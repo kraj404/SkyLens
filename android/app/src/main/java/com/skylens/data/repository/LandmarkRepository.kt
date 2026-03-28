@@ -2,6 +2,7 @@ package com.skylens.data.repository
 
 import com.skylens.data.local.dao.LandmarkDao
 import com.skylens.data.local.entities.LandmarkEntity
+import com.skylens.data.remote.WikimediaApiClient
 import com.skylens.domain.model.Landmark
 import com.skylens.domain.model.LandmarkType
 import com.skylens.geo.GeoCalculator
@@ -15,7 +16,8 @@ import javax.inject.Singleton
 @Singleton
 class LandmarkRepository @Inject constructor(
     private val landmarkDao: LandmarkDao,
-    private val geoCalculator: GeoCalculator
+    private val geoCalculator: GeoCalculator,
+    private val wikimediaApiClient: WikimediaApiClient
 ) {
 
     fun searchLandmarks(query: String, limit: Int = 50): Flow<List<Landmark>> {
@@ -74,9 +76,54 @@ class LandmarkRepository @Inject constructor(
         }.first()
     }
 
+    /**
+     * Fetch and cache photo for a landmark from Wikimedia
+     */
+    suspend fun fetchAndCachePhoto(landmarkId: String): String? {
+        val landmark = getLandmarkById(landmarkId) ?: return null
+
+        // Skip if already has photo
+        if (landmark.photoUrls.isNotEmpty()) {
+            return landmark.photoUrls.first()
+        }
+
+        // Fetch from Wikimedia
+        val photoUrl = wikimediaApiClient.getPhotoUrl(landmark.name) ?: return null
+
+        // Update database with photo URL
+        val photosJson = JSONArray(listOf(photoUrl)).toString()
+        landmarkDao.updateLandmarkPhoto(landmarkId, photosJson)
+
+        return photoUrl
+    }
+
+    /**
+     * Batch fetch photos for multiple landmarks (background task)
+     */
+    suspend fun batchFetchPhotos(landmarks: List<Landmark>) {
+        landmarks.forEach { landmark ->
+            if (landmark.photoUrls.isEmpty()) {
+                try {
+                    fetchAndCachePhoto(landmark.id)
+                } catch (e: Exception) {
+                    android.util.Log.e("LandmarkRepo", "Failed to fetch photo for ${landmark.name}", e)
+                }
+            }
+        }
+    }
+
     // Extension functions for mapping
     private fun LandmarkEntity.toDomainModel(): Landmark {
         val photos = photoUrls?.let {
+            try {
+                val jsonArray = JSONArray(it)
+                List(jsonArray.length()) { i -> jsonArray.getString(i) }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } ?: emptyList()
+
+        val files = photoFiles?.let {
             try {
                 val jsonArray = JSONArray(it)
                 List(jsonArray.length()) { i -> jsonArray.getString(i) }
@@ -96,13 +143,20 @@ class LandmarkRepository @Inject constructor(
             wikiId = wikiId,
             country = country,
             aiStory = aiStory,
-            photoUrls = photos
+            photoUrls = photos,
+            photoFiles = files,
+            generalFact = generalFact,
+            historicalFact = historicalFact
         )
     }
 
     private fun Landmark.toEntity(): LandmarkEntity {
         val photosJson = if (photoUrls.isNotEmpty()) {
             JSONArray(photoUrls).toString()
+        } else null
+
+        val filesJson = if (photoFiles.isNotEmpty()) {
+            JSONArray(photoFiles).toString()
         } else null
 
         return LandmarkEntity(
@@ -116,7 +170,10 @@ class LandmarkRepository @Inject constructor(
             wikiId = wikiId,
             country = country,
             aiStory = aiStory,
-            photoUrls = photosJson
+            photoUrls = photosJson,
+            photoFiles = filesJson,
+            generalFact = generalFact,
+            historicalFact = historicalFact
         )
     }
 }

@@ -22,9 +22,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.skylens.presentation.ui.components.MapLibreMapView
+import com.skylens.util.UnitFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +39,7 @@ fun FlightMapScreen(
     viewModel: FlightMapViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val useMetric by viewModel.useMetric.collectAsState()
     var showLandmarkSheet by remember { mutableStateOf(false) }
 
     // Initialize route (but don't start tracking)
@@ -97,11 +100,11 @@ fun FlightMapScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Alt: ${position.altitude ?: 0} ft",
+                                text = "Alt: ${UnitFormatter.formatAltitude(position.altitude, useMetric)}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = "Speed: ${position.speed ?: 0} km/h",
+                                text = "Speed: ${UnitFormatter.formatSpeed(position.speed, useMetric)}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             uiState.gpsAccuracy?.let { accuracy ->
@@ -170,52 +173,55 @@ fun FlightMapScreen(
                 }
             }
 
-            // Start/Stop Flight Button
-            FloatingActionButton(
-                onClick = {
-                    if (uiState.isTracking) {
-                        viewModel.stopFlight()
-                    } else {
-                        viewModel.startFlightTracking(departure, arrival)
-                    }
-                },
+            // Bottom Control Panel (AI Narrator + Play/Stop Button)
+            Card(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = if (uiState.isTracking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            ) {
-                Icon(
-                    imageVector = if (uiState.isTracking) Icons.Default.Close else Icons.Default.PlayArrow,
-                    contentDescription = if (uiState.isTracking) "Stop Flight" else "Start Flight"
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+                    .fillMaxWidth(0.95f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
                 )
-            }
-
-            // AI Narrator Box
-            uiState.aiNarration?.let { narration ->
-                Card(
+            ) {
+                Row(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp)
-                        .fillMaxWidth(0.9f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "🤖 AI Narrator",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
+                    // AI Narrator Section
+                    Column(
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    ) {
                         Text(
-                            text = narration,
-                            style = MaterialTheme.typography.bodyMedium
+                            text = "🤖 AI Narrator",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = uiState.aiNarration ?: "Starting flight...",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Play/Stop Button
+                    FloatingActionButton(
+                        onClick = {
+                            if (uiState.isTracking) {
+                                viewModel.stopFlight()
+                            } else {
+                                viewModel.startFlightTracking(departure, arrival)
+                            }
+                        },
+                        containerColor = if (uiState.isTracking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.isTracking) Icons.Default.Close else Icons.Default.PlayArrow,
+                            contentDescription = if (uiState.isTracking) "Stop Flight" else "Start Flight"
                         )
                     }
                 }

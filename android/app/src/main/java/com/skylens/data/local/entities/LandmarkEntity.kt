@@ -44,6 +44,15 @@ data class LandmarkEntity(
     @ColumnInfo(name = "photo_urls")
     val photoUrls: String?, // JSON array as string
 
+    @ColumnInfo(name = "photo_files")
+    val photoFiles: String?, // JSON array of local file paths
+
+    @ColumnInfo(name = "general_fact")
+    val generalFact: String?,
+
+    @ColumnInfo(name = "historical_fact")
+    val historicalFact: String?,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 )

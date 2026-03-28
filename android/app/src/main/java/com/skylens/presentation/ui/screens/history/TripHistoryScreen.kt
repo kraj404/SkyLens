@@ -8,15 +8,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.core.content.FileProvider
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +82,7 @@ fun TripHistoryScreen(
                         items(uiState.trips) { tripWithSummary ->
                             TripCard(
                                 tripWithSummary = tripWithSummary,
+                                viewModel = viewModel,
                                 onClick = {
                                     android.util.Log.d("TripHistoryScreen", "Trip card clicked: ${tripWithSummary.trip.id}")
                                     onTripClick(tripWithSummary.trip.id, tripWithSummary.trip.departureAirport, tripWithSummary.trip.arrivalAirport)
@@ -95,12 +101,15 @@ fun TripHistoryScreen(
 @Composable
 private fun TripCard(
     tripWithSummary: TripWithSummary,
+    viewModel: TripHistoryViewModel,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onReplay: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val trip = tripWithSummary.trip
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     Card(
         modifier = Modifier
@@ -147,6 +156,46 @@ private fun TripCard(
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = "Replay trip",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val geojson = viewModel.exportTripAsGeoJson(trip.id)
+
+                                if (geojson != null) {
+                                    // Save to cache directory
+                                    val file = File(context.cacheDir, "trip_${trip.id}.geojson")
+                                    file.writeText(geojson)
+
+                                    // Share file
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        file
+                                    )
+
+                                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "application/geo+json"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        putExtra(android.content.Intent.EXTRA_SUBJECT, "Trip: ${trip.departureAirport} to ${trip.arrivalAirport}")
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+
+                                    context.startActivity(android.content.Intent.createChooser(shareIntent, "Export Trip"))
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("TripCard", "Failed to export trip", e)
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = "Export trip",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }

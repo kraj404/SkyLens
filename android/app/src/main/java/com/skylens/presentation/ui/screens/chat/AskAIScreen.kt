@@ -86,14 +86,17 @@ fun AskAIScreen(
             }
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
         ) {
             if (uiState.messages.isEmpty()) {
                 Column(
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .wrapContentHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -115,7 +118,9 @@ fun AskAIScreen(
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {

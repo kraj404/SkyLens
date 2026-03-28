@@ -21,9 +21,9 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val aiProvider by viewModel.aiProvider.collectAsState()
+    val useMetricUnits by viewModel.useMetric.collectAsState()
     var useMockGps by remember { mutableStateOf(true) }
     var enableNotifications by remember { mutableStateOf(true) }
-    var useMetricUnits by remember { mutableStateOf(false) }
     var enableBackgroundTracking by remember { mutableStateOf(false) }
     var showAiProviderDialog by remember { mutableStateOf(false) }
 
@@ -93,7 +93,7 @@ fun SettingsScreen(
                     title = "Use Metric",
                     description = "Show altitude in meters, speed in km/h",
                     checked = useMetricUnits,
-                    onCheckedChange = { useMetricUnits = it }
+                    onCheckedChange = { viewModel.setUseMetric(it) }
                 )
             }
 

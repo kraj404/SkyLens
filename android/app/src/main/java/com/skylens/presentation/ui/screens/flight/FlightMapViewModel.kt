@@ -1,5 +1,6 @@
 package com.skylens.presentation.ui.screens.flight
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.skylens.ai.AiStoryManager
@@ -45,11 +46,23 @@ class FlightMapViewModel @Inject constructor(
     private val claudeApiClient: ClaudeApiClient,
     private val aiStoryManager: AiStoryManager,
     private val geoCalculator: GeoCalculator,
-    private val notificationManager: com.skylens.notifications.LandmarkNotificationManager
+    private val notificationManager: com.skylens.notifications.LandmarkNotificationManager,
+    private val settingsDataStore: com.skylens.data.preferences.SettingsDataStore
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "FlightMapViewModel"
+    }
 
     private val _uiState = MutableStateFlow(FlightMapUiState())
     val uiState: StateFlow<FlightMapUiState> = _uiState.asStateFlow()
+
+    val useMetric: StateFlow<Boolean> = settingsDataStore.useMetricFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     private var trackingJob: Job? = null
     private var narrationJob: Job? = null
@@ -64,23 +77,24 @@ class FlightMapViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
 
             try {
-                val mockCoords = mapOf(
-                    "LAX" to Pair(33.9416, -118.4085),
-                    "NRT" to Pair(35.7647, 140.3864),
-                    "DTW" to Pair(42.2124, -83.3534),
-                    "BLR" to Pair(13.1986, 77.7066),
-                    "FRA" to Pair(50.0379, 8.5622),
-                    "LHR" to Pair(51.4700, -0.4543)
-                )
+                // Fetch real airport coordinates from database
+                val departure = airportRepository.getAirportByIataCode(departureAirport)
+                val arrival = airportRepository.getAirportByIataCode(arrivalAirport)
 
-                val depCoords = mockCoords[departureAirport] ?: Pair(33.9416, -118.4085)
-                val arrCoords = mockCoords[arrivalAirport] ?: Pair(35.7647, 140.3864)
+                if (departure == null || arrival == null) {
+                    android.util.Log.e("FlightMapViewModel", "Airport not found in initializeRoute: $departureAirport or $arrivalAirport")
+                    _uiState.update { it.copy(isLoading = false, error = "Airport not found") }
+                    return@launch
+                }
+
+                val depCoords = Pair(departure.latitude, departure.longitude)
+                val arrCoords = Pair(arrival.latitude, arrival.longitude)
 
                 // Generate CURVED great circle route (not straight line!)
                 val routePoints = calculateGreatCircleRoute(
                     depCoords.first, depCoords.second,
                     arrCoords.first, arrCoords.second,
-                    numPoints = 50
+                    numPoints = 200 // More points = smoother curve on Mercator projection
                 )
 
                 // Load ALL landmarks from database
@@ -317,16 +331,22 @@ class FlightMapViewModel @Inject constructor(
     }
 
     private suspend fun updatePredictions(position: FlightPosition) {
-        if (position.speed == null || position.heading == null) return
-
         val predictions = mutableListOf<PredictedLandmark>()
         val altitude = position.altitude ?: 35000
         val visibilityRadius = geoCalculator.visibilityRadiusKm(altitude)
+        val speed = position.speed ?: 850f // km/h
+        val heading = position.heading ?: 0f
 
-        // Check positions 2, 5, and 10 minutes ahead
+        // Predict future positions using velocity
         for (minutesAhead in listOf(2, 5, 10)) {
-            val futurePos = flightTracker.predictFuturePosition(minutesAhead) ?: continue
-            val (futureLat, futureLon) = futurePos
+            // Calculate future position using GeoCalculator
+            val (futureLat, futureLon) = GeoCalculator.estimateFuturePosition(
+                position.latitude,
+                position.longitude,
+                speed.toDouble(),
+                heading.toDouble(),
+                minutesAhead
+            )
 
             val nearbyFuture = landmarkRepository.getLandmarksNearPosition(
                 futureLat,
@@ -342,13 +362,12 @@ class FlightMapViewModel @Inject constructor(
                     landmark.latitude, landmark.longitude
                 )
 
-                if (currentDistance > visibilityRadius) {
-                    // Generate AI preview for top predictions
+                if (currentDistance > visibilityRadius && predictions.none { it.landmark.id == landmark.id }) {
                     predictions.add(
                         PredictedLandmark(
                             landmark = landmark,
                             visibleInMinutes = minutesAhead,
-                            confidence = 0.8f
+                            confidence = 0.9f
                         )
                     )
                 }
@@ -398,14 +417,18 @@ class FlightMapViewModel @Inject constructor(
      * Start AI narrator that provides ongoing commentary
      */
     private fun startAINarrator() {
+        Log.d(TAG, "startAINarrator() called - launching narration job")
         narrationJob = viewModelScope.launch {
-            while (true) {
-                delay(60000) // Update every 60 seconds (reduced from 30s to save costs)
+            var narrationCount = 0
 
-                val position = _uiState.value.currentPosition ?: continue
+            while (true) {
+                val position = _uiState.value.currentPosition
                 val landmarks = _uiState.value.nearbyLandmarks.take(5)
 
-                if (landmarks.isNotEmpty()) {
+                Log.d(TAG, "AI Narrator tick #$narrationCount - position: $position, landmarks count: ${landmarks.size}")
+
+                if (position != null && landmarks.isNotEmpty()) {
+                    Log.d(TAG, "Calling aiStoryManager.getFlightNarration() with ${landmarks.size} landmarks")
                     val result = aiStoryManager.getFlightNarration(
                         currentRegion = landmarks.first().country ?: "unknown region",
                         nearbyLandmarks = landmarks.map { it.name },
@@ -413,8 +436,18 @@ class FlightMapViewModel @Inject constructor(
                     )
 
                     if (result.isSuccess) {
-                        _uiState.update { it.copy(aiNarration = result.getOrNull()) }
+                        val narration = result.getOrNull()
+                        Log.d(TAG, "AI Narration generated successfully: ${narration?.take(50)}...")
+                        _uiState.update { it.copy(aiNarration = narration) }
+                        narrationCount++
+                        delay(60000) // Wait 60 seconds before next narration
+                    } else {
+                        Log.e(TAG, "AI Narration failed: ${result.exceptionOrNull()?.message}")
+                        delay(10000) // Retry after 10 seconds on failure
                     }
+                } else {
+                    Log.d(TAG, "AI Narrator skipped - position: ${position != null}, landmarks: ${landmarks.isNotEmpty()}")
+                    delay(2000) // Check again in 2 seconds if no position/landmarks yet
                 }
             }
         }
@@ -482,24 +515,31 @@ class FlightMapViewModel @Inject constructor(
             try {
                 _uiState.update { it.copy(isLoading = true) }
 
-                // Fetch airport coordinates
-                val departure = airportRepository.getAirportByIataCode(departureCode)
-                val arrival = airportRepository.getAirportByIataCode(arrivalCode)
+                // Use existing route from initializeRoute() if available
+                val existingRoute = _uiState.value.routePoints
+                val routePoints = if (existingRoute.isNotEmpty()) {
+                    android.util.Log.d("FlightMapViewModel", "Reusing existing route with ${existingRoute.size} points")
+                    existingRoute
+                } else {
+                    // Fetch airport coordinates and generate route as fallback
+                    val departure = airportRepository.getAirportByIataCode(departureCode)
+                    val arrival = airportRepository.getAirportByIataCode(arrivalCode)
 
-                if (departure == null || arrival == null) {
-                    android.util.Log.e("FlightMapViewModel", "Airport not found: $departureCode or $arrivalCode")
-                    _uiState.update { it.copy(isLoading = false, error = "Airport not found") }
-                    return@launch
+                    if (departure == null || arrival == null) {
+                        android.util.Log.e("FlightMapViewModel", "Airport not found: $departureCode or $arrivalCode")
+                        _uiState.update { it.copy(isLoading = false, error = "Airport not found") }
+                        return@launch
+                    }
+
+                    android.util.Log.d("FlightMapViewModel", "Airports loaded: ${departure.name} -> ${arrival.name}")
+
+                    // Calculate great circle route
+                    calculateGreatCircleRoute(
+                        departure.latitude, departure.longitude,
+                        arrival.latitude, arrival.longitude,
+                        200
+                    )
                 }
-
-                android.util.Log.d("FlightMapViewModel", "Airports loaded: ${departure.name} -> ${arrival.name}")
-
-                // Calculate great circle route (100 points)
-                val routePoints = calculateGreatCircleRoute(
-                    departure.latitude, departure.longitude,
-                    arrival.latitude, arrival.longitude,
-                    100
-                )
 
                 // Save trip to database
                 val trip = com.skylens.domain.model.Trip(
@@ -541,9 +581,24 @@ class FlightMapViewModel @Inject constructor(
                     }
                 }
 
-                android.util.Log.d("FlightMapViewModel", "Found ${routeLandmarks.size} landmarks along route corridor")
+                // Apply same filtering as init block (remove countries, etc.)
+                val filteredLandmarks = routeLandmarks
+                    .distinctBy { it.id }
+                    .filter { landmark ->
+                        // Exclude country-level landmarks
+                        !landmark.name.equals("India", ignoreCase = true) &&
+                        !landmark.name.equals("United States", ignoreCase = true) &&
+                        !landmark.name.equals("China", ignoreCase = true) &&
+                        (landmark.type != com.skylens.domain.model.LandmarkType.OTHER ||
+                        landmark.elevationM != null) // Keep if has elevation (real landmark)
+                    }
 
-                _uiState.update { it.copy(allRouteLandmarks = routeLandmarks) }
+                android.util.Log.d("FlightMapViewModel", "Found ${filteredLandmarks.size} landmarks along route corridor")
+
+                _uiState.update { it.copy(allRouteLandmarks = filteredLandmarks) }
+
+                // Start AI narrator
+                startAINarrator()
 
                 // Simulate flight along route
                 mockFlightJob = viewModelScope.launch {

@@ -1,6 +1,10 @@
 package com.skylens.data.repository
 
+import com.skylens.data.local.dao.OfflinePackDao
+import com.skylens.data.local.entities.OfflinePackEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,41 +15,45 @@ data class OfflinePack(
     val arrivalAirport: String,
     val packSizeMB: Int,
     val landmarkCount: Int,
-    val tileCount: Int,
-    val downloadedAt: Long?
+    val photoCount: Int,
+    val downloadedAt: Long?,
+    val status: String,
+    val progress: Float
 )
 
 @Singleton
 class OfflinePackRepository @Inject constructor(
-    // TODO: Inject DAO and API client
+    private val offlinePackDao: OfflinePackDao
 ) {
-
-    private val downloadedPacks = mutableMapOf<String, OfflinePack>()
 
     suspend fun getOfflinePack(departure: String, arrival: String): OfflinePack? = withContext(Dispatchers.IO) {
         val routeKey = "$departure-$arrival"
-        downloadedPacks[routeKey]
+        offlinePackDao.getPackByRoute(routeKey)?.toDomainModel()
     }
 
-    suspend fun markPackDownloaded(departure: String, arrival: String) = withContext(Dispatchers.IO) {
+    fun observeOfflinePack(departure: String, arrival: String): Flow<OfflinePack?> {
         val routeKey = "$departure-$arrival"
-        downloadedPacks[routeKey] = OfflinePack(
-            routeKey = routeKey,
-            departureAirport = departure,
-            arrivalAirport = arrival,
-            packSizeMB = 487,
-            landmarkCount = 2134,
-            tileCount = 8543,
-            downloadedAt = System.currentTimeMillis()
-        )
+        return offlinePackDao.observePackByRoute(routeKey).map { it?.toDomainModel() }
     }
 
     suspend fun getAllDownloadedPacks(): List<OfflinePack> = withContext(Dispatchers.IO) {
-        downloadedPacks.values.toList()
+        offlinePackDao.getCompletedPacks().map { it.toDomainModel() }
     }
 
     suspend fun deleteOfflinePack(routeKey: String) = withContext(Dispatchers.IO) {
-        downloadedPacks.remove(routeKey)
-        // TODO: Delete from Room database and local storage
+        offlinePackDao.deletePackByRoute(routeKey)
+        // TODO: Delete cached photo files from filesystem
     }
+
+    private fun OfflinePackEntity.toDomainModel() = OfflinePack(
+        routeKey = route,
+        departureAirport = departure,
+        arrivalAirport = arrival,
+        packSizeMB = (sizeBytes / (1024 * 1024)).toInt(),
+        landmarkCount = landmarkCount,
+        photoCount = photoCount,
+        downloadedAt = downloadedAt,
+        status = status,
+        progress = progress
+    )
 }
